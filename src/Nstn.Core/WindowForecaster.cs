@@ -41,14 +41,20 @@ namespace Nstn.Core {
             return null;
         }
 
-        /// <summary>The grid sample closest to a moment, or null outside the night's 24 hours.</summary>
+        /// <summary>
+        /// The last grid sample at or before a moment, or null outside the night's 24
+        /// hours. Not the nearest one: the segments start at the first worthwhile
+        /// sample, so a minute before an opening the nearest sample already passes
+        /// while the window is still closed, and the shown value would contradict
+        /// the shown state.
+        /// </summary>
         public SkySample? SampleAt(double epochMs) {
             var samples = Sky.Samples;
             if (samples.Count == 0 || epochMs < samples[0].T || epochMs > samples[samples.Count - 1].T) {
                 return null;
             }
             var step = NightModel.SampleStepMinutes * 60_000.0;
-            var index = (int)Math.Round((epochMs - samples[0].T) / step);
+            var index = (int)Math.Floor((epochMs - samples[0].T) / step);
             return samples[Math.Clamp(index, 0, samples.Count - 1)];
         }
 

@@ -63,6 +63,15 @@ def nstn_window(line, bandwidth_nm):
             "Line": line, "BandwidthNm": bandwidth_nm}
 
 
+def nstn_preset(preset, line, bandwidth_nm, preset_first=False):
+    """A condition taken from the filter catalog. preset_first writes FilterPreset
+    before Line, the reverse of what N.I.N.A. writes, to show the order does not matter."""
+    head = {"$id": _id(), "$type": "NINA.Plugin.Nstn.Conditions.NstnWindowCondition, NINA.Plugin.Nstn"}
+    if preset_first:
+        return {**head, "FilterPreset": preset, "Line": line, "BandwidthNm": bandwidth_nm}
+    return {**head, "Line": line, "BandwidthNm": bandwidth_nm, "FilterPreset": preset}
+
+
 def nstn_wait():
     return {"$id": _id(), "$type": "NINA.Plugin.Nstn.Instructions.NstnWaitForWindow, NINA.Plugin.Nstn",
             "ErrorBehavior": 0, "Attempts": 1}
@@ -126,6 +135,16 @@ def main(variant="full", out_dir=None):
                   plan_block("H-alpha 7 nm", "Ha", 7.0, 5, 300, 1),
                   plan_block("L/RGB", "RGB", 89.0, 1, 120, None)]
         passes, name = 1000, "M31-NSTN-Plan.json"
+    elif variant == "duo":
+        # One duo filter (Askar D1, OSC camera), judged on each of its lines: the H-alpha
+        # block collects while only H-alpha is worth it, the O III block while both are.
+        d1 = "Askar D1 - H-Alpha & O-III"
+        blocks = [nstn_wait(),
+                  container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "D1 while O III is open",
+                            items=[series(5, 300)], conditions=[nstn_preset(d1, "OIII", 6.0, preset_first=True), loop(1)]),
+                  container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "D1 while H-alpha is open",
+                            items=[series(5, 300)], conditions=[nstn_preset(d1, "Ha", 6.0), loop(1)])]
+        passes, name = 1000, "M31-NSTN-Duo.json"
     else:
         blocks = [band_block("O III 7 nm", "OIII", 7.0), band_block("L/RGB", "RGB", 89.0)]
         if variant == "closed-wait":

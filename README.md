@@ -14,8 +14,8 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 
 | Pfad | Inhalt |
 |---|---|
-| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator` (net8.0, keine NINA-/WPF-Abhängigkeit) |
-| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster- und Simulator-Tests (xUnit, net10.0) |
+| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog` (net8.0, keine NINA-/WPF-Abhängigkeit) |
+| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator- und Katalog-Tests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
 
@@ -69,10 +69,26 @@ Der Befehl liest die Bänder aus den NSTN-Bedingungen der Blöcke darunter und w
 eines öffnet. Öffnet in dieser Nacht keines mehr, wartet er weiter, bis die
 Schleifenbedingung (z. B. Morgendämmerung) die Schleife beendet.
 
-Duo-Filter: Bedingung auf die **schwächere** Linie setzen (meist O III), sonst fällt
-das Fenster zu großzügig aus.
-
 ![Sequencer mit NSTN-Bedingung und Warte-Befehl](docs/sequencer-0.1.1.jpg)
+
+## Filter-Voreinstellungen (ab 0.3.0)
+
+Im Feld **Filter** der Bedingung stehen die Duo-Filter und Schmalband-Sätze aus den
+NSTN-Tabellen (`src/Nstn.Core/Filters/*.csv`, unverändert aus `astro-public`). Mit einem
+Filter zeigt **Band** nur dessen Linien, die Bandbreite kommt aus der Tabelle und ist
+gesperrt; „Custom" erlaubt beides von Hand.
+
+- Ein **Duo-Filter** startet auf seiner schwächeren Linie – der mit dem meisten
+  Streulicht im Band (Bandbreite × Rayleigh-Gewicht), meist O III. Wählt man die
+  robustere Linie, sagt ein Hinweis, dass der andere Kanal dann schon überstrahlt ist.
+  Bei Farbkameras ist das eine legitime Wahl: zwei Blöcke, „solange O III offen" und
+  „solange Hα offen", sammeln Hα länger (`samples/M31-NSTN-Duo.json`).
+- Gespeichert werden Linie, Bandbreite **und** Filtername; Linie und Bandbreite bleiben
+  maßgeblich. Beim Laden wird die gespeicherte Linie nie durch die Voreinstellung ersetzt,
+  unabhängig von der Reihenfolge der Felder in der Datei.
+- Die Tabellen sind ein Vorschlag: Askar verkauft einen D1 mit 6/6 nm und einen
+  „Super D1" mit 8,5/6,5 nm. Nahe der Schwelle verschiebt 1 nm das Fenster deutlich
+  (M 31 am 17.11.: O III 6 nm ab 22:18, 7 nm ab 23:56).
 
 ## Nachtplan (ab 0.2.0)
 
@@ -96,10 +112,11 @@ Der Plan aktualisiert sich alle 20 s und per „Recalculate".
 
 `samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
 2 × 2 s). `samples/M31-NSTN-Plan.json`: eine Nacht im Rundlauf (O III und Hα je 5 × 300 s
-pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan. In N.I.N.A. über
+pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan.
+`samples/M31-NSTN-Duo.json`: Askar D1 an einer Farbkamera, je ein Block für O III und Hα. In N.I.N.A. über
 *Advanced Sequencer → Load sequence* laden; N.I.N.A. packt einen einzelnen Ziel-Container
 selbst in eine neue Sequenz. Erzeugt werden die Dateien mit
-`python samples/make_sample.py [full|plan]` – wichtig für eigene Generatoren: jedes Element
+`python samples/make_sample.py [full|plan|duo]` – wichtig für eigene Generatoren: jedes Element
 braucht `"Parent": {"$ref": …}` auf seinen Container, sonst hat es nach dem Laden keinen
 Elternteil und findet sein Ziel nicht.
 
@@ -115,15 +132,17 @@ Elternteil und findet sein Ziel nicht.
 | Anzeige-Refresh markiert die Sequenz nicht als geändert | ok |
 | Nachtplan 0.2.0 (M31-NSTN-Plan.json ab 23:41) | O III 10 × 300 s, Hα 14 × 300 s, L/RGB 57 × 120 s, Ende 03:48; Vorrang-Hinweis bei L/RGB |
 | Nachtplan nach Änderung der äußeren Schleife (1000 → 2) | per „Recalculate" und automatisch nach ≤ 20 s: Ende 03:02, „loop iterations used up" |
+| Voreinstellungen 0.3.0 laden (M31-NSTN-Duo.json, beide Feldreihenfolgen) | Askar D1, O III bzw. Hα wie gespeichert, 6 nm gesperrt; Hinweis beim Hα-Block; Fenster = Python-Port (O III 6 nm 22:18–04:30, Hα 6 nm 18:36–04:30) |
+| Filterwechsel in der Oberfläche (→ L-eXtreme 7 nm) | Band springt auf O III, 7 nm, Hinweis weg, Fenster 23:56–03:44 |
 
 0.1.1 behebt einen Befund aus diesem Test: 0.1.0 schrieb bei Leerdurchläufen je
 Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); jetzt nur bei
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.2.0)
+## Bekannte Grenzen (Stand 0.3.0)
 
-- Keine Filter-Voreinstellungen aus den NSTN-CSVs; Band und Bandbreite von Hand.
+- Kein Abgleich mit den Filternamen des NINA-Profils; der Filter wird je Bedingung gewählt.
 - Nachtplan: nur die Blöcke direkt unter dem Warte-Befehl; andere Schleifenbedingungen als
   „Loop For Iterations"/„Loop Until Time" werden genannt, aber nicht gerechnet; nur die
   laufende Nacht.

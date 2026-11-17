@@ -62,6 +62,30 @@ namespace Nstn.Core.Tests {
             Assert.Equal(1, forecaster.Computations);
         }
 
+        /// <summary>
+        /// The shown sky value must agree with the shown state right before and
+        /// after an opening, not only on the grid points.
+        /// </summary>
+        [Fact]
+        public void TheShownSkyValueAgreesWithTheStateAroundAnOpening() {
+            var c = GoldenCase("mid-north-autumn");
+            var date = DateOnly.Parse(c.GetProperty("date").GetString()!);
+            var band = NightModel.LineFilter("Ha", 6);
+            var forecast = new WindowForecaster().Forecast(
+                new DateTime(date.Year, date.Month, date.Day, 20, 0, 0, DateTimeKind.Utc), Berlin,
+                c.GetProperty("lat").GetDouble(), c.GetProperty("lon").GetDouble(),
+                c.GetProperty("ra").GetDouble(), c.GetProperty("dec").GetDouble(),
+                c.GetProperty("sqm").GetDouble(), band, NightModel.DefaultSettings);
+            var opening = forecast.Segments[0].Start;
+            foreach (var offsetMs in new[] { -60_000.0, -1.0, 0.0, 1.0, 60_000.0 }) {
+                var moment = opening + offsetMs;
+                // The full rule - altitude and sky - since a window can also open
+                // because the target climbs above the minimum altitude.
+                var passes = NightModel.IsWorthwhile(forecast.SampleAt(moment)!, band);
+                Assert.True(forecast.IsOpenAt(moment) == passes, $"offset {offsetMs} ms: open {forecast.IsOpenAt(moment)}, sample passes {passes}");
+            }
+        }
+
         [Fact]
         public void OpenStateAndNextChangeFollowTheSegments() {
             var band = NightModel.LineFilter("Ha", 6);

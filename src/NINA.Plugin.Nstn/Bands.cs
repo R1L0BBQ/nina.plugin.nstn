@@ -8,6 +8,17 @@ namespace NINA.Plugin.Nstn {
     /// <summary>One entry of the band selector in the condition.</summary>
     public sealed record BandChoice(string Key, string Label);
 
+    /// <summary>One entry of the filter selector: a catalog filter, or "custom" with an empty name.</summary>
+    public sealed record PresetChoice(string Name, string Label);
+
+    public static class Presets {
+
+        public static IReadOnlyList<PresetChoice> All { get; } =
+            new[] { new PresetChoice(string.Empty, "Custom: band and bandwidth by hand") }
+                .Concat(FilterCatalog.All.Select(f => new PresetChoice(f.Name, $"{(f.Kind == FilterKind.Duo ? "Duo" : "Set")} · {f.Name}")))
+                .ToList();
+    }
+
     /// <summary>The bands a condition can judge, keyed as in the night model.</summary>
     public static class Bands {
 

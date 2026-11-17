@@ -51,6 +51,7 @@ namespace NINA.Plugin.Nstn.Conditions {
 
         private string line = Bands.DefaultKey;
         private double bandwidthNm = Bands.DefaultBandwidthNm;
+        private string filterPreset = string.Empty;
         private IList<string> issues = new List<string>();
         private string windowSummary = string.Empty;
         private string nowSummary = string.Empty;
@@ -75,6 +76,7 @@ namespace NINA.Plugin.Nstn.Conditions {
             return new NstnWindowCondition(this) {
                 Line = Line,
                 BandwidthNm = BandwidthNm,
+                FilterPreset = FilterPreset,
             };
         }
 
@@ -87,14 +89,37 @@ namespace NINA.Plugin.Nstn.Conditions {
         // saved with the sequence
         // -------------------------------------------------------------------
 
+        // Line and BandwidthNm are what the condition judges, also when a catalog
+        // filter is chosen: a template keeps working if the catalog changes or the
+        // name is unknown to an older plugin. They are declared before FilterPreset,
+        // so they are written - and read back - before it.
+
         [JsonProperty]
         public string Line {
             get => line;
             set {
+                // A ComboBox whose list is being swapped can push null; that is not a choice.
+                if (string.IsNullOrEmpty(value)) {
+                    return;
+                }
                 line = Bands.Normalize(value);
+                var preset = FilterCatalog.Find(filterPreset);
+                if (preset != null) {
+                    var entry = preset.Find(line);
+                    if (entry != null) {
+                        bandwidthNm = entry.BandwidthNm;
+                        RaisePropertyChanged(nameof(BandwidthNm));
+                    } else {
+                        // A line the filter does not pass: the choice is a custom band now.
+                        filterPreset = string.Empty;
+                        RaisePresetChanged();
+                    }
+                }
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(IsNarrowband));
                 RaisePropertyChanged(nameof(ShortLabel));
+                RaisePropertyChanged(nameof(PresetHint));
+                RaisePropertyChanged(nameof(HasPresetHint));
                 ScheduleRefresh();
             }
         }
@@ -110,6 +135,35 @@ namespace NINA.Plugin.Nstn.Conditions {
                 }
                 bandwidthNm = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(PresetHint));
+                RaisePropertyChanged(nameof(HasPresetHint));
+                ScheduleRefresh();
+            }
+        }
+
+        /// <summary>
+        /// Name of the catalog filter the band was taken from, empty for a band set by
+        /// hand. Setting it keeps the current line if the filter passes it and takes
+        /// the catalog bandwidth; this is the path of a loaded sequence, where the
+        /// saved line must survive. A choice in the sequencer goes through
+        /// <see cref="SelectedPreset"/> instead.
+        /// </summary>
+        [JsonProperty]
+        public string FilterPreset {
+            get => filterPreset;
+            set {
+                var preset = FilterCatalog.Find(value);
+                filterPreset = preset?.Name ?? string.Empty;
+                if (preset != null) {
+                    var keep = preset.Find(line) ?? preset.WeakLine ?? preset.Lines[0];
+                    line = keep.Line;
+                    bandwidthNm = keep.BandwidthNm;
+                    RaisePropertyChanged(nameof(Line));
+                    RaisePropertyChanged(nameof(BandwidthNm));
+                    RaisePropertyChanged(nameof(IsNarrowband));
+                    RaisePropertyChanged(nameof(ShortLabel));
+                }
+                RaisePresetChanged();
                 ScheduleRefresh();
             }
         }
@@ -118,11 +172,65 @@ namespace NINA.Plugin.Nstn.Conditions {
         // display, never saved
         // -------------------------------------------------------------------
 
-        public IReadOnlyList<BandChoice> BandChoices => Bands.All;
+        public IReadOnlyList<PresetChoice> PresetChoices => Presets.All;
+
+        /// <summary>
+        /// The filter chosen in the sequencer. A fresh choice starts a duo filter on
+        /// its weak line - the channel that floods first - and a set on the current
+        /// line if it has one.
+        /// </summary>
+        public string SelectedPreset {
+            get => filterPreset;
+            set {
+                if (value == null) {
+                    return;
+                }
+                var preset = FilterCatalog.Find(value);
+                if (preset != null) {
+                    line = (preset.WeakLine ?? preset.Find(line) ?? preset.Lines[0]).Line;
+                }
+                FilterPreset = value;
+            }
+        }
+
+        /// <summary>The bands to choose from: all of them, or only the lines of the chosen filter.</summary>
+        public IReadOnlyList<BandChoice> AvailableBands {
+            get {
+                var preset = FilterCatalog.Find(filterPreset);
+                return preset == null
+                    ? Bands.All
+                    : Bands.All.Where(b => preset.Find(b.Key) != null).ToList();
+            }
+        }
+
+        public bool IsBandwidthEditable => FilterCatalog.Find(filterPreset) == null;
+
+        /// <summary>A duo filter judged on its robust line: say what that means for the other channel.</summary>
+        public string PresetHint {
+            get {
+                var weak = FilterCatalog.Find(filterPreset)?.WeakLine;
+                if (weak == null || weak.Line == line) {
+                    return string.Empty;
+                }
+                var weakLabel = Bands.ShortLabel(weak.Line);
+                return $"{ShortLabel} opens earlier than {weakLabel} in this duo filter: while only {ShortLabel} is open, the {weakLabel} channel of these frames is already flooded.";
+            }
+        }
+
+        public bool HasPresetHint => PresetHint.Length > 0;
 
         public bool IsNarrowband => Line != Bands.Broadband;
 
         public string ShortLabel => Bands.ShortLabel(Line);
+
+        private void RaisePresetChanged() {
+            RaisePropertyChanged(nameof(FilterPreset));
+            RaisePropertyChanged(nameof(SelectedPreset));
+            RaisePropertyChanged(nameof(AvailableBands));
+            RaisePropertyChanged(nameof(IsBandwidthEditable));
+            RaisePropertyChanged(nameof(PresetHint));
+            RaisePropertyChanged(nameof(HasPresetHint));
+        }
 
         // The display setters only notify on a real change: Check() runs many times
         // a second in a loop of skipped blocks, and every notification is UI work.
@@ -199,7 +307,7 @@ namespace NINA.Plugin.Nstn.Conditions {
         }
 
         public override string ToString() {
-            return $"Condition: {nameof(NstnWindowCondition)}, Line: {Line}, Bandwidth: {BandwidthNm} nm, {NowSummary}";
+            return $"Condition: {nameof(NstnWindowCondition)}, Line: {Line}, Bandwidth: {BandwidthNm} nm, Filter: {(FilterPreset.Length > 0 ? FilterPreset : "custom")}, {NowSummary}";
         }
 
         // -------------------------------------------------------------------

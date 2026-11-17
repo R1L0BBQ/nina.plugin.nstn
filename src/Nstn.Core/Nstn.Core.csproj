@@ -16,4 +16,10 @@
     <PackageReference Include="CosineKitty.AstronomyEngine" Version="2.1.19" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The web planner's filter tables, copied unchanged from astro-public. -->
+    <EmbeddedResource Include="Filters\dnb-filter.csv" />
+    <EmbeddedResource Include="Filters\schmalband-filter.csv" />
+  </ItemGroup>
+
 </Project>
