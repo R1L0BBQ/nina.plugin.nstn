@@ -4,14 +4,17 @@ using System.ComponentModel.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Newtonsoft.Json;
 using NINA.Core.Enum;
 using NINA.Core.Model;
 using NINA.Core.Utility;
 using NINA.Plugin.Nstn.Conditions;
+using NINA.Profile.Interfaces;
 using NINA.Sequencer.Conditions;
 using NINA.Sequencer.Container;
 using NINA.Sequencer.SequenceItem;
+using NINA.Sequencer.Utility;
 using NINA.Sequencer.Validations;
 using Nstn.Core;
 
@@ -40,19 +43,61 @@ namespace NINA.Plugin.Nstn.Instructions {
         // night itself (at local noon) may change underneath a long wait.
         private static readonly TimeSpan Recheck = TimeSpan.FromMinutes(1);
 
+        // The night plan follows edits to the blocks with this delay. The watchdog
+        // only runs while the instruction is part of the active sequence, never in the
+        // template library - one timer per stored copy would be a leak.
+        private static readonly TimeSpan PlanRefresh = TimeSpan.FromSeconds(20);
+
+        private readonly IProfileService profileService;
+        private readonly ConditionWatchdog planWatchdog;
+        private readonly object planGate = new object();
+
         private IList<string> issues = new List<string>();
         private string waitSummary = string.Empty;
         private bool reportedNothingOpensTonight;
+        private NightPlan plan = NightPlan.Empty;
 
         [ImportingConstructor]
-        public NstnWaitForWindow() {
+        public NstnWaitForWindow(IProfileService profileService) {
+            this.profileService = profileService;
+            planWatchdog = new ConditionWatchdog(() => { RefreshPlan(); return Task.CompletedTask; }, PlanRefresh);
+            RecalculateCommand = new ActionCommand(() => Task.Run(RefreshPlan));
         }
 
-        private NstnWaitForWindow(NstnWaitForWindow cloneMe) : this() {
+        private NstnWaitForWindow(NstnWaitForWindow cloneMe) : this(cloneMe.profileService) {
             CopyMetaData(cloneMe);
         }
 
         public override object Clone() => new NstnWaitForWindow(this);
+
+        // -------------------------------------------------------------------
+        // night plan, display only
+        // -------------------------------------------------------------------
+
+        public NightPlan Plan {
+            get => plan;
+            private set {
+                plan = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public ICommand RecalculateCommand { get; }
+
+        private void RefreshPlan() {
+            lock (planGate) {
+                NightPlan next;
+                try {
+                    next = NightPlanBuilder.Build(Parent, new NstnOptions(profileService), DateTime.UtcNow);
+                } catch (Exception ex) {
+                    Logger.Error(ex);
+                    next = NightPlan.Empty with { HasPlan = true, Summary = $"Night plan failed: {ex.Message}" };
+                }
+                if (next.Signature != plan.Signature || next.HasPlan != plan.HasPlan) {
+                    Plan = next;
+                }
+            }
+        }
 
         public IList<string> Issues {
             get => issues;
@@ -79,7 +124,15 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         public override void AfterParentChanged() {
             base.AfterParentChanged();
-            Task.Run(() => Validate());
+            if (ItemUtility.IsInRootContainer(Parent)) {
+                planWatchdog.Start();
+            } else {
+                planWatchdog.Cancel();
+            }
+            Task.Run(() => {
+                Validate();
+                RefreshPlan();
+            });
         }
 
         public bool Validate() {

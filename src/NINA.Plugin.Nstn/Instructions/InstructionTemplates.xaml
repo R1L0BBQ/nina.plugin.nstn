@@ -6,6 +6,17 @@
     xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
     xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
 
+    <BooleanToVisibilityConverter x:Key="NstnPlanVisibility" />
+
+    <!--  Bars of a timeline row: an ItemsControl on a Canvas, positioned by PlanBar.Left.  -->
+    <Style x:Key="NstnBarItem" TargetType="ContentPresenter">
+        <Setter Property="Canvas.Left" Value="{Binding Left}" />
+    </Style>
+
+    <ItemsPanelTemplate x:Key="NstnBarPanel">
+        <Canvas />
+    </ItemsPanelTemplate>
+
     <DataTemplate DataType="{x:Type local:NstnWaitForWindow}">
         <view:SequenceBlockView>
             <view:SequenceBlockView.SequenceItemContent>
@@ -16,6 +27,103 @@
                         Opacity="0.8"
                         Text="{Binding WaitSummary}"
                         TextWrapping="Wrap" />
+
+                    <!--  Night plan: per block its window (pale) and when it would expose (solid).  -->
+                    <StackPanel Margin="0,8,0,0" Visibility="{Binding Plan.HasPlan, Converter={StaticResource NstnPlanVisibility}}">
+                        <TextBlock Text="{Binding Plan.Summary}" TextWrapping="Wrap" />
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="320" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="1"
+                                HorizontalAlignment="Left"
+                                Opacity="0.7"
+                                Text="{Binding Plan.AxisStart}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                Opacity="0.7"
+                                Text="{Binding Plan.AxisEnd}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Plan.Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="320" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="{Binding Label}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <Grid
+                                            Grid.Column="1"
+                                            Width="320"
+                                            Height="12"
+                                            ClipToBounds="True">
+                                            <Rectangle Fill="{DynamicResource PrimaryBrush}" Opacity="0.08" />
+                                            <ItemsControl
+                                                ItemContainerStyle="{StaticResource NstnBarItem}"
+                                                ItemsPanel="{StaticResource NstnBarPanel}"
+                                                ItemsSource="{Binding Windows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Rectangle
+                                                            Width="{Binding Width}"
+                                                            Height="12"
+                                                            Fill="{DynamicResource ButtonBackgroundBrush}"
+                                                            Opacity="0.35" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <ItemsControl
+                                                ItemContainerStyle="{StaticResource NstnBarItem}"
+                                                ItemsPanel="{StaticResource NstnBarPanel}"
+                                                ItemsSource="{Binding Exposing}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Rectangle
+                                                            Width="{Binding Width}"
+                                                            Height="6"
+                                                            Margin="0,3,0,0"
+                                                            Fill="{DynamicResource ButtonBackgroundBrush}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Canvas Visibility="{Binding NowVisible, Converter={StaticResource NstnPlanVisibility}}">
+                                                <Rectangle
+                                                    Canvas.Left="{Binding NowLeft}"
+                                                    Width="1"
+                                                    Height="12"
+                                                    Fill="{DynamicResource PrimaryBrush}" />
+                                            </Canvas>
+                                        </Grid>
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="{Binding Expected}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            Opacity="0.7"
+                            Text="{Binding Plan.Notes}"
+                            TextWrapping="Wrap" />
+                        <Button
+                            Margin="0,4,0,0"
+                            Padding="8,2"
+                            HorizontalAlignment="Left"
+                            Command="{Binding RecalculateCommand}"
+                            Content="Recalculate" />
+                    </StackPanel>
                 </StackPanel>
             </view:SequenceBlockView.SequenceItemContent>
         </view:SequenceBlockView>

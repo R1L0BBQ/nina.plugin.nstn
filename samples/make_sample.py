@@ -80,6 +80,18 @@ def band_block(label, line, bandwidth_nm):
                      items=[light(2.0)], conditions=[nstn_window(line, bandwidth_nm), loop(2)])
 
 
+def series(count, seconds):
+    """A nested set "count x seconds", like a Smart Exposure."""
+    return container(f"{SEQ}.Container.SequentialContainer, {SEQ}", f"{count} x {seconds:g} s",
+                     items=[light(seconds)], conditions=[loop(count)])
+
+
+def plan_block(label, line, bandwidth_nm, count, seconds, passes):
+    conditions = [nstn_window(line, bandwidth_nm)] + ([loop(passes)] if passes else [])
+    return container(f"{SEQ}.Container.SequentialContainer, {SEQ}", label,
+                     items=[series(count, seconds)], conditions=conditions)
+
+
 def link_parents(node):
     """Point every child of a container at it, recursively, as N.I.N.A. saves it."""
     for key in ("Items", "Conditions", "Triggers"):
@@ -106,6 +118,14 @@ def main(variant="full", out_dir=None):
                   band_block("H-alpha 7 nm", "Ha", 7.0),
                   band_block("L/RGB", "RGB", 89.0)]
         passes, name = 3, "M31-NSTN-Test.json"
+    elif variant == "plan":
+        # A night-length round robin for the night plan: two blocks with a limit of
+        # one pass of 5 x 300 s each, and L/RGB without a limit (priority, flagged).
+        blocks = [nstn_wait(),
+                  plan_block("O III 7 nm", "OIII", 7.0, 5, 300, 1),
+                  plan_block("H-alpha 7 nm", "Ha", 7.0, 5, 300, 1),
+                  plan_block("L/RGB", "RGB", 89.0, 1, 120, None)]
+        passes, name = 1000, "M31-NSTN-Plan.json"
     else:
         blocks = [band_block("O III 7 nm", "OIII", 7.0), band_block("L/RGB", "RGB", 89.0)]
         if variant == "closed-wait":

@@ -23,6 +23,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Sky quality at the zenith (SQM)" />
@@ -88,6 +89,22 @@
                     VerticalAlignment="Center"
                     Opacity="0.7"
                     Text="Default 20" />
+
+                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Night plan: overhead per exposure" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="4"
+                    Grid.Column="1"
+                    Margin="5,2"
+                    Text="{Binding OverheadSeconds, UpdateSourceTrigger=LostFocus}"
+                    TextAlignment="Right"
+                    Unit="s" />
+                <TextBlock
+                    Grid.Row="4"
+                    Grid.Column="2"
+                    Margin="5,0,0,0"
+                    VerticalAlignment="Center"
+                    Opacity="0.7"
+                    Text="Download, saving, dithering on average. Only for the estimate. Default 10" />
             </Grid>
 
             <TextBlock

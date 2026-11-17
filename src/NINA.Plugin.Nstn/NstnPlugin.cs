@@ -65,6 +65,14 @@ namespace NINA.Plugin.Nstn {
             }
         }
 
+        public double OverheadSeconds {
+            get => options.OverheadSeconds;
+            set {
+                options.OverheadSeconds = value;
+                RaisePropertyChanged();
+            }
+        }
+
         /// <summary>
         /// How dark the site must be for a typical 7 nm band to open at all - the
         /// answer to "why is nothing ever open here" before anyone has to ask.
@@ -84,6 +92,7 @@ namespace NINA.Plugin.Nstn {
             RaisePropertyChanged(nameof(ThresholdBroadband));
             RaisePropertyChanged(nameof(ThresholdNarrowband));
             RaisePropertyChanged(nameof(MinimumAltitude));
+            RaisePropertyChanged(nameof(OverheadSeconds));
             RaisePropertyChanged(nameof(NarrowbandFloorText));
         }
 

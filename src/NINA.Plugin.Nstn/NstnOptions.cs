@@ -45,6 +45,15 @@ namespace NINA.Plugin.Nstn {
             set => accessor.SetValueDouble(nameof(MinimumAltitude), value);
         }
 
+        /// <summary>
+        /// Time added after every exposure in the night plan: download, saving,
+        /// dithering on average. Only the estimate uses it, never a decision.
+        /// </summary>
+        public double OverheadSeconds {
+            get => accessor.GetValueDouble(nameof(OverheadSeconds), 10.0);
+            set => accessor.SetValueDouble(nameof(OverheadSeconds), Math.Max(0, value));
+        }
+
         public bool HasSkyQuality => SkyQuality > UnsetSkyQuality;
 
         public WindowSettings ToWindowSettings() => new WindowSettings(

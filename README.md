@@ -14,8 +14,8 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 
 | Pfad | Inhalt |
 |---|---|
-| `src/Nstn.Core` | Nachtmodell + `WindowForecaster` (net8.0, keine NINA-/WPF-Abhängigkeit) |
-| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-Tests (xUnit, net10.0) |
+| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator` (net8.0, keine NINA-/WPF-Abhängigkeit) |
+| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster- und Simulator-Tests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
 
@@ -49,13 +49,18 @@ Muster für mehrere Filter (Rundlauf, Gewichtung über die Anzahl je Block):
 ```
 Ziel NGC 7000
   Anfahren & Zentrieren
-  Schleife – bis Morgendämmerung
+  Schleife – Loop Until Time: Morgendämmerung
     Wait for NSTN window
-    Block OIII – Loop while NSTN window open: O III 7 nm → 5 × 300 s OIII
-    Block Hα   – Loop while NSTN window open: H-alpha 7 nm → 5 × 300 s Ha
-    Block SII  – Loop while NSTN window open: S II 7 nm → 5 × 300 s SII
+    Block OIII – Bedingungen: NSTN O III 7 nm + Loop For Iterations 1 → Smart Exposure 5 × 300 s OIII
+    Block Hα   – Bedingungen: NSTN H-alpha 7 nm + Loop For Iterations 1 → Smart Exposure 5 × 300 s Ha
+    Block SII  – Bedingungen: NSTN S II 7 nm + Loop For Iterations 1 → Smart Exposure 5 × 300 s SII
   Trigger: Autofokus, Meridian-Flip, Dithern
 ```
+
+**Bedingungen an einem Block sind Schleifenbedingungen.** Hat ein Block nur die
+NSTN-Bedingung, wiederholt N.I.N.A. ihn, solange sein Fenster offen ist: Er behält das
+Fenster für sich (strikter Vorrang). Erst „Loop For Iterations 1" am Block macht daraus
+einen Rundlauf, bei dem jeder Block pro Schleifendurchlauf einmal drankommt.
 
 Ein Block, dessen Fenster zu ist, wird übersprungen. **„Wait for NSTN window" gehört an
 den Anfang der Schleife:** Sind alle Fenster zu, würde N.I.N.A. 3.2 die Schleife sonst
@@ -69,12 +74,32 @@ das Fenster zu großzügig aus.
 
 ![Sequencer mit NSTN-Bedingung und Warte-Befehl](docs/sequencer-0.1.1.jpg)
 
-## Beispiel
+## Nachtplan (ab 0.2.0)
 
-`samples/M31-NSTN-Test.json` ist das Muster oben als Ziel-Container für M 31 (3 Durchläufe,
-je Block höchstens 2 × 2 s). In N.I.N.A. über *Advanced Sequencer → Load sequence* laden;
-N.I.N.A. packt einen einzelnen Ziel-Container selbst in eine neue Sequenz. Erzeugt wird die
-Datei mit `python samples/make_sample.py` – wichtig für eigene Generatoren: jedes Element
+„Wait for NSTN window" zeigt unter sich, was die gebaute Struktur heute Nacht ab jetzt
+voraussichtlich bringt: je Block das Fenster (blass), die Zeiten, in denen er belichten
+würde (kräftig), Integrationszeit und Anzahl, dazu eine Zusammenfassung je Band und wann
+und warum der Plan endet. Hinweise erscheinen darunter, etwa wenn ein Block ohne
+Iterationsgrenze das Fenster für sich behält oder die äußere Schleife keine Bedingung hat
+und deshalb nur einmal läuft.
+
+![Nachtplan unter „Wait for NSTN window"](docs/night-plan-0.2.0.jpg)
+
+Gerechnet wird nach den Regeln des Sequencers (Prüfung vor jeder Aufnahme, begonnene
+Aufnahmen laufen zu Ende, Blockgrenze aus „Loop For Iterations", Ende aus „Loop For
+Iterations" bzw. „Loop Until Time" der äußeren Schleife). Verschachtelte Reihen wie Smart
+Exposure werden aufgelöst. Je Aufnahme kommt ein Zuschlag dazu (*Options → Plugins → NSTN*,
+Standard 10 s); Autofokus, Meridian-Flip, Filterwechsel und Schwenks sind nicht enthalten.
+Der Plan aktualisiert sich alle 20 s und per „Recalculate".
+
+## Beispiele
+
+`samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
+2 × 2 s). `samples/M31-NSTN-Plan.json`: eine Nacht im Rundlauf (O III und Hα je 5 × 300 s
+pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan. In N.I.N.A. über
+*Advanced Sequencer → Load sequence* laden; N.I.N.A. packt einen einzelnen Ziel-Container
+selbst in eine neue Sequenz. Erzeugt werden die Dateien mit
+`python samples/make_sample.py [full|plan]` – wichtig für eigene Generatoren: jedes Element
 braucht `"Parent": {"$ref": …}` auf seinen Container, sonst hat es nach dem Laden keinen
 Elternteil und findet sein Ziel nicht.
 
@@ -88,15 +113,20 @@ Elternteil und findet sein Ziel nicht.
 | Alle Fenster zu, **ohne** Warte-Befehl | 1000 Leerdurchläufe in 0,56 s (N.I.N.A. 3.2 bremst nicht) |
 | Alle Fenster zu, **mit** Warte-Befehl | wartet („O III opens 23:56"), 8 % eines Kerns (Leerlauf 2 %), Abbrechen ok |
 | Anzeige-Refresh markiert die Sequenz nicht als geändert | ok |
+| Nachtplan 0.2.0 (M31-NSTN-Plan.json ab 23:41) | O III 10 × 300 s, Hα 14 × 300 s, L/RGB 57 × 120 s, Ende 03:48; Vorrang-Hinweis bei L/RGB |
+| Nachtplan nach Änderung der äußeren Schleife (1000 → 2) | per „Recalculate" und automatisch nach ≤ 20 s: Ende 03:02, „loop iterations used up" |
 
 0.1.1 behebt einen Befund aus diesem Test: 0.1.0 schrieb bei Leerdurchläufen je
 Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); jetzt nur bei
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.1.1)
+## Bekannte Grenzen (Stand 0.2.0)
 
-- Kein Nacht-Panel mit Zeitvorschau je Filter, keine Filter-Voreinstellungen aus den NSTN-CSVs.
+- Keine Filter-Voreinstellungen aus den NSTN-CSVs; Band und Bandbreite von Hand.
+- Nachtplan: nur die Blöcke direkt unter dem Warte-Befehl; andere Schleifenbedingungen als
+  „Loop For Iterations"/„Loop Until Time" werden genannt, aber nicht gerechnet; nur die
+  laufende Nacht.
 - Uhrzeiten in der lokalen Zeit des Aufnahme-PCs.
 - Getestet nur mit der Simulator-Kamera, ohne Montierung, Filterrad, Guiding und
   Meridian-Flip.
