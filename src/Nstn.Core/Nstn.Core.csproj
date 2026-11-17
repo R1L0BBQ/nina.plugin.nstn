@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The NSTN night model without any NINA or WPF dependency, so it builds and is
+       tested anywhere, including the Linux SDK container. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Nstn.Core</RootNamespace>
+    <AssemblyName>Nstn.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same version the golden fixtures were generated with (tests/golden/README.md). -->
+    <PackageReference Include="CosineKitty.AstronomyEngine" Version="2.1.19" />
+  </ItemGroup>
+
+</Project>

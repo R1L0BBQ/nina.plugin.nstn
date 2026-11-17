@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- NINA 3.2 runs on .NET 8. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>NINA.Plugin.Nstn</RootNamespace>
+    <AssemblyName>NINA.Plugin.Nstn</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Two .NET Framework-only packages deep inside NINA's dependency tree; NINA ships them itself. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Everything NINA brings itself stays out of the output: compile against it only. -->
+    <PackageReference Include="NINA.Plugin" Version="3.2.0.9001">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nstn.Core\Nstn.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The plugin folder NINA loads from holds exactly three files: this assembly,
+       the night model and Astronomy Engine. Everything else NINA brings itself. -->
+  <Target Name="StagePlugin" AfterTargets="Build">
+    <PropertyGroup>
+      <PluginStage>$(MSBuildThisFileDirectory)..\..\dist\NSTN\</PluginStage>
+    </PropertyGroup>
+    <ItemGroup>
+      <PluginFile Include="$(TargetPath)" />
+      <PluginFile Include="$(TargetDir)Nstn.Core.dll" />
+      <PluginFile Include="@(ReferencePath)" Condition="'%(Filename)' == 'astronomy'" />
+    </ItemGroup>
+    <Error Condition="'@(PluginFile->Count())' != '3'" Text="Expected 3 plugin files, found: @(PluginFile)" />
+    <RemoveDir Directories="$(PluginStage)" />
+    <Copy SourceFiles="@(PluginFile)" DestinationFolder="$(PluginStage)" />
+  </Target>
+
+</Project>
