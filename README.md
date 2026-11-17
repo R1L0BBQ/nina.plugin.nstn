@@ -14,7 +14,7 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 
 | Pfad | Inhalt |
 |---|---|
-| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog` (net8.0, keine NINA-/WPF-Abhängigkeit) |
+| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments` (net8.0, keine NINA-/WPF-Abhängigkeit) |
 | `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator- und Katalog-Tests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
@@ -90,6 +90,29 @@ gesperrt; „Custom" erlaubt beides von Hand.
   „Super D1" mit 8,5/6,5 nm. Nahe der Schwelle verschiebt 1 nm das Fenster deutlich
   (M 31 am 17.11.: O III 6 nm ab 22:18, 7 nm ab 23:56).
 
+## Filter des Profils (ab 0.4.0)
+
+Unter *Options → Plugins → NSTN → Filters of this profile* steht jeder Filter der
+Filterradliste des Profils mit dem, was er durchlässt: „not assigned", „Broadband",
+„Custom" (Linie + Bandbreite von Hand) oder ein Filter aus den NSTN-Tabellen. Gespeichert
+wird je Profil.
+
+- **Vorschläge** erscheinen neben jeder Zeile und werden nur per Knopf übernommen.
+  Erkannt werden bekannte Produkte (Askar D1/D2/C1/C2, Optolong L-eNhance/L-eXtreme/
+  L-Ultimate/L-Para/L-Synergy, SV220 mit Bandbreite), Breitbandnamen (L, R, G, B, Lum,
+  kein_Filter, NoFilter, UV/IR) und einzelne Linien **mit** Bandbreite im Namen
+  („Ha 3nm"). Keine Bandbreite wird erfunden: „Ha" allein, „Super D1" oder „ALP-T" bleiben
+  ohne Vorschlag.
+- In der Bedingung macht **Filter → „From this block's filter"** daraus die Quelle: Die
+  Bedingung liest den Filter aus dem Switch Filter bzw. der Smart Exposure ihres Blocks
+  und nimmt Band und Bandbreite aus der Zuordnung. Ändert man den Filter in der Smart
+  Exposure, folgt die NSTN-Bedingung. Fehlt der Filter, nutzt der Block mehrere Filter
+  oder ist der Filter nicht zugeordnet, meldet die Bedingung das als Problem.
+- Für die Farbkamera mit Duo-Filter und zwei Blöcken (O III und Hα mit demselben Filter)
+  passt diese Quelle nicht – dort den Filter direkt in der Bedingung wählen.
+
+`samples/M31-NSTN-Block.json` braucht die Filter „Askar D1", „Ha" und „L" im Profil.
+
 ## Nachtplan (ab 0.2.0)
 
 „Wait for NSTN window" zeigt unter sich, was die gebaute Struktur heute Nacht ab jetzt
@@ -116,7 +139,7 @@ pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan.
 `samples/M31-NSTN-Duo.json`: Askar D1 an einer Farbkamera, je ein Block für O III und Hα. In N.I.N.A. über
 *Advanced Sequencer → Load sequence* laden; N.I.N.A. packt einen einzelnen Ziel-Container
 selbst in eine neue Sequenz. Erzeugt werden die Dateien mit
-`python samples/make_sample.py [full|plan|duo]` – wichtig für eigene Generatoren: jedes Element
+`python samples/make_sample.py [full|plan|duo|block]` – wichtig für eigene Generatoren: jedes Element
 braucht `"Parent": {"$ref": …}` auf seinen Container, sonst hat es nach dem Laden keinen
 Elternteil und findet sein Ziel nicht.
 
@@ -134,15 +157,19 @@ Elternteil und findet sein Ziel nicht.
 | Nachtplan nach Änderung der äußeren Schleife (1000 → 2) | per „Recalculate" und automatisch nach ≤ 20 s: Ende 03:02, „loop iterations used up" |
 | Voreinstellungen 0.3.0 laden (M31-NSTN-Duo.json, beide Feldreihenfolgen) | Askar D1, O III bzw. Hα wie gespeichert, 6 nm gesperrt; Hinweis beim Hα-Block; Fenster = Python-Port (O III 6 nm 22:18–04:30, Hα 6 nm 18:36–04:30) |
 | Filterwechsel in der Oberfläche (→ L-eXtreme 7 nm) | Band springt auf O III, 7 nm, Hinweis weg, Fenster 23:56–03:44 |
+| Filter des Profils 0.4.0 (Askar D1, Ha, L angelegt) | Zeilen erscheinen, Vorschläge D1 → O III 6 nm und L → Breitband, „Ha" ohne Vorschlag; per Knopf übernommen, Ha von Hand Custom 7 nm; im Profil gespeichert |
+| M31-NSTN-Block.json per `--sequencefile` | lädt ohne Fehler; **Anzeige im Block-Modus nicht angesehen** – ab hier kamen in N.I.N.A. keine Klicks der Computersteuerung mehr an |
 
 0.1.1 behebt einen Befund aus diesem Test: 0.1.0 schrieb bei Leerdurchläufen je
 Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); jetzt nur bei
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.3.0)
+## Bekannte Grenzen (Stand 0.4.0)
 
-- Kein Abgleich mit den Filternamen des NINA-Profils; der Filter wird je Bedingung gewählt.
+- „From this block's filter" ist in N.I.N.A. noch nicht in der Anzeige geprüft (Laden ja).
+- Umbenennen eines Filters im Profil wird erst nach „Reload filter list" oder erneutem
+  Öffnen sichtbar; neue/gelöschte Filter sofort.
 - Nachtplan: nur die Blöcke direkt unter dem Warte-Befehl; andere Schleifenbedingungen als
   „Loop For Iterations"/„Loop Until Time" werden genannt, aber nicht gerechnet; nur die
   laufende Nacht.

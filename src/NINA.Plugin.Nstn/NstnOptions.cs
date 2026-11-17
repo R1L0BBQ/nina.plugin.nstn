@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NINA.Profile;
 using NINA.Profile.Interfaces;
 using Nstn.Core;
@@ -52,6 +53,12 @@ namespace NINA.Plugin.Nstn {
         public double OverheadSeconds {
             get => accessor.GetValueDouble(nameof(OverheadSeconds), 10.0);
             set => accessor.SetValueDouble(nameof(OverheadSeconds), Math.Max(0, value));
+        }
+
+        /// <summary>What each filter of the profile passes, for "this block's filter".</summary>
+        public IReadOnlyList<FilterAssignment> Assignments {
+            get => FilterAssignments.Deserialize(accessor.GetValueString(nameof(Assignments), string.Empty));
+            set => accessor.SetValueString(nameof(Assignments), FilterAssignments.Serialize(value));
         }
 
         public bool HasSkyQuality => SkyQuality > UnsetSkyQuality;

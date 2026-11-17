@@ -34,6 +34,7 @@
                             Margin="5,0,0,0"
                             VerticalAlignment="Center"
                             DisplayMemberPath="Label"
+                            IsEnabled="{Binding IsBandSelectable}"
                             ItemsSource="{Binding AvailableBands}"
                             SelectedValue="{Binding Line}"
                             SelectedValuePath="Key" />
@@ -49,6 +50,12 @@
                             Unit="nm"
                             Visibility="{Binding IsNarrowband, Converter={StaticResource NstnBooleanToVisibility}}" />
                     </StackPanel>
+                    <TextBlock
+                        Margin="0,3,0,0"
+                        Opacity="0.8"
+                        Text="{Binding BlockFilterText}"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding FollowsBlockFilter, Converter={StaticResource NstnBooleanToVisibility}}" />
                     <TextBlock
                         Margin="0,3,0,0"
                         Opacity="0.8"

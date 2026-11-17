@@ -7,10 +7,13 @@ using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using NINA.Astrometry;
+using NINA.Core.Enum;
 using NINA.Core.Utility;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.Conditions;
+using NINA.Sequencer.Container;
 using NINA.Sequencer.SequenceItem;
+using NINA.Sequencer.SequenceItem.FilterWheel;
 using NINA.Sequencer.Utility;
 using NINA.Sequencer.Validations;
 using Nstn.Core;
@@ -152,6 +155,13 @@ namespace NINA.Plugin.Nstn.Conditions {
         public string FilterPreset {
             get => filterPreset;
             set {
+                if (value == BlockFilter) {
+                    // Band and bandwidth follow the filter of the block; resolved on refresh.
+                    filterPreset = BlockFilter;
+                    RaisePresetChanged();
+                    ScheduleRefresh();
+                    return;
+                }
                 var preset = FilterCatalog.Find(value);
                 filterPreset = preset?.Name ?? string.Empty;
                 if (preset != null) {
@@ -172,7 +182,38 @@ namespace NINA.Plugin.Nstn.Conditions {
         // display, never saved
         // -------------------------------------------------------------------
 
-        public IReadOnlyList<PresetChoice> PresetChoices => Presets.All;
+        /// <summary>
+        /// Stored in <see cref="FilterPreset"/> for "take the band from the filter of this
+        /// block". An older plugin does not know it and falls back to the saved line and
+        /// bandwidth, which are always written.
+        /// </summary>
+        public const string BlockFilter = "@block";
+
+        private static readonly IReadOnlyList<PresetChoice> Choices =
+            Presets.All.Take(1)
+                .Append(new PresetChoice(BlockFilter, "From this block's filter (Options > Plugins > NSTN)"))
+                .Concat(Presets.All.Skip(1))
+                .ToList();
+
+        public IReadOnlyList<PresetChoice> PresetChoices => Choices;
+
+        private string blockFilterText = string.Empty;
+
+        /// <summary>Which filter the block uses and what it is assigned to; empty unless the band follows the block.</summary>
+        public string BlockFilterText {
+            get => blockFilterText;
+            private set {
+                if (blockFilterText == value) {
+                    return;
+                }
+                blockFilterText = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool FollowsBlockFilter => filterPreset == BlockFilter;
+
+        public bool IsBandSelectable => !FollowsBlockFilter;
 
         /// <summary>
         /// The filter chosen in the sequencer. A fresh choice starts a duo filter on
@@ -193,9 +234,12 @@ namespace NINA.Plugin.Nstn.Conditions {
             }
         }
 
-        /// <summary>The bands to choose from: all of them, or only the lines of the chosen filter.</summary>
+        /// <summary>The bands to choose from: all of them, only the lines of the chosen filter, or the one the block's filter gives.</summary>
         public IReadOnlyList<BandChoice> AvailableBands {
             get {
+                if (FollowsBlockFilter) {
+                    return Bands.All.Where(b => b.Key == line).ToList();
+                }
                 var preset = FilterCatalog.Find(filterPreset);
                 return preset == null
                     ? Bands.All
@@ -203,7 +247,7 @@ namespace NINA.Plugin.Nstn.Conditions {
             }
         }
 
-        public bool IsBandwidthEditable => FilterCatalog.Find(filterPreset) == null;
+        public bool IsBandwidthEditable => filterPreset.Length == 0;
 
         /// <summary>A duo filter judged on its robust line: say what that means for the other channel.</summary>
         public string PresetHint {
@@ -230,6 +274,68 @@ namespace NINA.Plugin.Nstn.Conditions {
             RaisePropertyChanged(nameof(IsBandwidthEditable));
             RaisePropertyChanged(nameof(PresetHint));
             RaisePropertyChanged(nameof(HasPresetHint));
+            RaisePropertyChanged(nameof(FollowsBlockFilter));
+            RaisePropertyChanged(nameof(IsBandSelectable));
+            if (!FollowsBlockFilter) {
+                BlockFilterText = string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// "From this block's filter": the filter of the Switch Filter / Smart Exposure
+        /// in this block, looked up in the profile's assignments. Line and bandwidth
+        /// are updated - and saved - only when they actually change.
+        /// </summary>
+        private void ResolveBlockFilter(NstnOptions options, List<string> found) {
+            var names = BlockFilterNames(Parent, 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (names.Count == 0) {
+                BlockFilterText = "Block filter: none found";
+                found.Add("No Switch Filter or Smart Exposure with a filter in this block: choose the filter here directly.");
+                return;
+            }
+            if (names.Count > 1) {
+                BlockFilterText = $"Block filters: {string.Join(", ", names)}";
+                found.Add($"This block uses several filters ({string.Join(", ", names)}): choose the filter here directly.");
+                return;
+            }
+            var assignment = FilterAssignments.Find(options.Assignments, names[0]);
+            if (assignment == null) {
+                BlockFilterText = $"Block filter: {names[0]}, not assigned";
+                found.Add($"Filter '{names[0]}' has no NSTN assignment: Options > Plugins > NSTN, 'Filters of this profile'.");
+                return;
+            }
+            BlockFilterText = $"Block filter: {names[0]} → {assignment.Describe()}";
+            var width = assignment.IsBroadband ? bandwidthNm : assignment.BandwidthNm;
+            if (line != assignment.Line || bandwidthNm != width) {
+                line = assignment.Line;
+                bandwidthNm = width;
+                RaisePropertyChanged(nameof(Line));
+                RaisePropertyChanged(nameof(BandwidthNm));
+                RaisePropertyChanged(nameof(IsNarrowband));
+                RaisePropertyChanged(nameof(ShortLabel));
+                RaisePropertyChanged(nameof(AvailableBands));
+            }
+        }
+
+        private static IEnumerable<string> BlockFilterNames(ISequenceContainer container, int depth) {
+            if (container == null || depth > 8) {
+                yield break;
+            }
+            foreach (var item in container.GetItemsSnapshot()) {
+                if (item.Status == SequenceEntityStatus.DISABLED) {
+                    continue;
+                }
+                if (item is SwitchFilter switchFilter) {
+                    var name = switchFilter.Filter?.Name?.Trim();
+                    if (!string.IsNullOrEmpty(name)) {
+                        yield return name;
+                    }
+                } else if (item is ISequenceContainer child) {
+                    foreach (var name in BlockFilterNames(child, depth + 1)) {
+                        yield return name;
+                    }
+                }
+            }
         }
 
         // The display setters only notify on a real change: Check() runs many times
@@ -347,6 +453,9 @@ namespace NINA.Plugin.Nstn.Conditions {
                     }
                     if (!options.HasSkyQuality) {
                         found.Add("Set the site's sky quality (SQM) in Options > Plugins > NSTN.");
+                    }
+                    if (FollowsBlockFilter) {
+                        ResolveBlockFilter(options, found);
                     }
                     if (found.Count == 0) {
                         var astrometry = profileService.ActiveProfile.AstrometrySettings;

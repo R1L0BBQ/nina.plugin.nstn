@@ -1,8 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.Composition;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using NINA.Core.Model.Equipment;
 using NINA.Plugin.Interfaces;
 using NINA.Profile.Interfaces;
 using Nstn.Core;
@@ -18,18 +23,91 @@ namespace NINA.Plugin.Nstn {
 
         private readonly IProfileService profileService;
         private readonly NstnOptions options;
+        private IReadOnlyList<FilterAssignmentRow> filterRows;
+        private INotifyCollectionChanged watchedFilters;
 
         [ImportingConstructor]
         public NstnPlugin(IProfileService profileService) {
             this.profileService = profileService;
             options = new NstnOptions(profileService);
             profileService.ProfileChanged += OnProfileChanged;
+            TakeSuggestionsCommand = new ActionCommand(TakeSuggestions);
+            ReloadFiltersCommand = new ActionCommand(BuildRows);
+            WatchFilterList();
         }
 
         public override Task Teardown() {
             profileService.ProfileChanged -= OnProfileChanged;
+            if (watchedFilters != null) {
+                watchedFilters.CollectionChanged -= OnFilterListChanged;
+            }
             return base.Teardown();
         }
+
+        // -------------------------------------------------------------------
+        // filter assignment: one row per filter of the profile's filter wheel
+        // -------------------------------------------------------------------
+
+        public IReadOnlyList<FilterAssignmentRow> FilterRows {
+            get {
+                if (filterRows == null) {
+                    BuildRows();
+                }
+                return filterRows;
+            }
+        }
+
+        public bool HasProfileFilters => FilterRows.Count > 0;
+
+        public ICommand TakeSuggestionsCommand { get; }
+
+        public ICommand ReloadFiltersCommand { get; }
+
+        private void BuildRows() {
+            var saved = options.Assignments;
+            var names = (profileService.ActiveProfile?.FilterWheelSettings?.FilterWheelFilters ?? Enumerable.Empty<FilterInfo>())
+                .Select(f => f?.Name?.Trim())
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            filterRows = names
+                .Select(n => new FilterAssignmentRow(n, FilterAssignments.Find(saved, n), SaveRows))
+                .ToList();
+            RaisePropertyChanged(nameof(FilterRows));
+            RaisePropertyChanged(nameof(HasProfileFilters));
+        }
+
+        /// <summary>
+        /// Rows of the current filter list replace their saved entries; entries of
+        /// filters no longer in the list are kept, so a filter taken out of the wheel
+        /// for a season keeps its description.
+        /// </summary>
+        private void SaveRows() {
+            var rows = filterRows ?? Array.Empty<FilterAssignmentRow>();
+            var shown = new HashSet<string>(rows.Select(r => r.NinaName), StringComparer.OrdinalIgnoreCase);
+            options.Assignments = options.Assignments
+                .Where(a => !shown.Contains(a.NinaName))
+                .Concat(rows.Select(r => r.ToAssignment()).Where(a => a != null))
+                .ToList();
+        }
+
+        private void TakeSuggestions() {
+            foreach (var row in FilterRows) {
+                row.TakeSuggestion();
+            }
+        }
+
+        private void WatchFilterList() {
+            if (watchedFilters != null) {
+                watchedFilters.CollectionChanged -= OnFilterListChanged;
+            }
+            watchedFilters = profileService.ActiveProfile?.FilterWheelSettings?.FilterWheelFilters;
+            if (watchedFilters != null) {
+                watchedFilters.CollectionChanged += OnFilterListChanged;
+            }
+        }
+
+        private void OnFilterListChanged(object sender, NotifyCollectionChangedEventArgs e) => BuildRows();
 
         public double SkyQuality {
             get => options.SkyQuality;
@@ -94,6 +172,8 @@ namespace NINA.Plugin.Nstn {
             RaisePropertyChanged(nameof(MinimumAltitude));
             RaisePropertyChanged(nameof(OverheadSeconds));
             RaisePropertyChanged(nameof(NarrowbandFloorText));
+            WatchFilterList();
+            BuildRows();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

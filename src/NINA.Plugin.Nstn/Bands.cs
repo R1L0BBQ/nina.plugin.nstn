@@ -32,6 +32,9 @@ namespace NINA.Plugin.Nstn {
             new BandChoice("Hb", "H-beta 486 nm"),
         };
 
+        /// <summary>The emission lines alone, for a filter that is not broadband.</summary>
+        public static IReadOnlyList<BandChoice> Lines { get; } = All.Where(b => b.Key != Broadband).ToList();
+
         public const string DefaultKey = "Ha";
 
         public const double DefaultBandwidthNm = 7.0;

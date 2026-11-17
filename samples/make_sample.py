@@ -72,6 +72,23 @@ def nstn_preset(preset, line, bandwidth_nm, preset_first=False):
     return {**head, "Line": line, "BandwidthNm": bandwidth_nm, "FilterPreset": preset}
 
 
+def switch_filter(name, position):
+    """N.I.N.A. matches the filter to the profile's filter list by name on load."""
+    return {"$id": _id(), "$type": f"{SEQ}.SequenceItem.FilterWheel.SwitchFilter, {SEQ}",
+            "Filter": {"$id": _id(), "$type": "NINA.Core.Model.Equipment.FilterInfo, NINA.Core",
+                       "_name": name, "_focusOffset": 0, "_position": position},
+            "ErrorBehavior": 0, "Attempts": 1}
+
+
+def block_filter_block(label, filter_name, position, count, seconds):
+    """A block whose NSTN band comes from its own filter via the profile's assignment."""
+    condition = {"$id": _id(), "$type": "NINA.Plugin.Nstn.Conditions.NstnWindowCondition, NINA.Plugin.Nstn",
+                 "Line": "Ha", "BandwidthNm": 7.0, "FilterPreset": "@block"}
+    return container(f"{SEQ}.Container.SequentialContainer, {SEQ}", label,
+                     items=[switch_filter(filter_name, position), series(count, seconds)],
+                     conditions=[condition, loop(1)])
+
+
 def nstn_wait():
     return {"$id": _id(), "$type": "NINA.Plugin.Nstn.Instructions.NstnWaitForWindow, NINA.Plugin.Nstn",
             "ErrorBehavior": 0, "Attempts": 1}
@@ -145,6 +162,15 @@ def main(variant="full", out_dir=None):
                   container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "D1 while H-alpha is open",
                             items=[series(5, 300)], conditions=[nstn_preset(d1, "Ha", 6.0), loop(1)])]
         passes, name = 1000, "M31-NSTN-Duo.json"
+    elif variant == "block":
+        # Filter wheel style: each block switches its filter, and the NSTN condition
+        # takes the band from that filter (Options > Plugins > NSTN, "Filters of this
+        # profile"). Needs the filters "Askar D1", "Ha" and "L" in the profile.
+        blocks = [nstn_wait(),
+                  block_filter_block("Askar D1", "Askar D1", 0, 5, 300),
+                  block_filter_block("Ha", "Ha", 1, 5, 300),
+                  block_filter_block("L", "L", 2, 10, 60)]
+        passes, name = 1000, "M31-NSTN-Block.json"
     else:
         blocks = [band_block("O III 7 nm", "OIII", 7.0), band_block("L/RGB", "RGB", 89.0)]
         if variant == "closed-wait":
