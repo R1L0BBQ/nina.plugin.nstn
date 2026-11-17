@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Nstn.Core;
@@ -34,6 +35,15 @@ namespace NINA.Plugin.Nstn {
 
         /// <summary>The emission lines alone, for a filter that is not broadband.</summary>
         public static IReadOnlyList<BandChoice> Lines { get; } = All.Where(b => b.Key != Broadband).ToList();
+
+        // One list instance per catalog filter. A ComboBox handed a new list resets its
+        // selection and writes null back; the real line then has to win a race against
+        // that reset - the band selector showed empty after a block's filter changed.
+        private static readonly ConcurrentDictionary<string, IReadOnlyList<BandChoice>> PresetLines = new();
+
+        /// <summary>The lines a catalog filter passes, always the same list instance.</summary>
+        public static IReadOnlyList<BandChoice> Of(CatalogFilter preset) =>
+            PresetLines.GetOrAdd(preset.Name, _ => All.Where(b => preset.Find(b.Key) != null).ToList());
 
         public const string DefaultKey = "Ha";
 

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
+using System.Windows;
 using Newtonsoft.Json;
 using NINA.Astrometry;
 using NINA.Core.Enum;
@@ -168,6 +169,8 @@ namespace NINA.Plugin.Nstn.Conditions {
                     var keep = preset.Find(line) ?? preset.WeakLine ?? preset.Lines[0];
                     line = keep.Line;
                     bandwidthNm = keep.BandwidthNm;
+                    // The list before the selection, see ResolveBlockFilter.
+                    RaisePropertyChanged(nameof(AvailableBands));
                     RaisePropertyChanged(nameof(Line));
                     RaisePropertyChanged(nameof(BandwidthNm));
                     RaisePropertyChanged(nameof(IsNarrowband));
@@ -234,16 +237,16 @@ namespace NINA.Plugin.Nstn.Conditions {
             }
         }
 
-        /// <summary>The bands to choose from: all of them, only the lines of the chosen filter, or the one the block's filter gives.</summary>
+        /// <summary>
+        /// The bands to choose from: only the lines of the chosen catalog filter, else
+        /// all of them - also when the band follows the block's filter, where the
+        /// selector is locked and the list must not change with every filter switch.
+        /// Always an existing list instance, see <see cref="Bands.Of"/>.
+        /// </summary>
         public IReadOnlyList<BandChoice> AvailableBands {
             get {
-                if (FollowsBlockFilter) {
-                    return Bands.All.Where(b => b.Key == line).ToList();
-                }
                 var preset = FilterCatalog.Find(filterPreset);
-                return preset == null
-                    ? Bands.All
-                    : Bands.All.Where(b => preset.Find(b.Key) != null).ToList();
+                return preset == null ? Bands.All : Bands.Of(preset);
             }
         }
 
@@ -283,11 +286,11 @@ namespace NINA.Plugin.Nstn.Conditions {
 
         /// <summary>
         /// "From this block's filter": the filter of the Switch Filter / Smart Exposure
-        /// in this block, looked up in the profile's assignments. Line and bandwidth
-        /// are updated - and saved - only when they actually change.
+        /// in this block (<paramref name="names"/>, read before refreshGate), looked up
+        /// in the profile's assignments. Line and bandwidth are updated - and saved -
+        /// only when they actually change. Must not touch N.I.N.A.'s containers.
         /// </summary>
-        private void ResolveBlockFilter(NstnOptions options, List<string> found) {
-            var names = BlockFilterNames(Parent, 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        private void ResolveBlockFilter(List<string> names, NstnOptions options, List<string> found) {
             if (names.Count == 0) {
                 BlockFilterText = "Block filter: none found";
                 found.Add("No Switch Filter or Smart Exposure with a filter in this block: choose the filter here directly.");
@@ -309,12 +312,25 @@ namespace NINA.Plugin.Nstn.Conditions {
             if (line != assignment.Line || bandwidthNm != width) {
                 line = assignment.Line;
                 bandwidthNm = width;
-                RaisePropertyChanged(nameof(Line));
-                RaisePropertyChanged(nameof(BandwidthNm));
-                RaisePropertyChanged(nameof(IsNarrowband));
-                RaisePropertyChanged(nameof(ShortLabel));
-                RaisePropertyChanged(nameof(AvailableBands));
+                // On the UI thread in one go, like a choice made by hand.
+                RaiseOnUiThread(nameof(Line), nameof(BandwidthNm), nameof(IsNarrowband), nameof(ShortLabel));
             }
+        }
+
+        /// <summary>Notify in this order on the UI thread; queued (never blocking) when called from elsewhere.</summary>
+        private void RaiseOnUiThread(params string[] names) {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess()) {
+                foreach (var name in names) {
+                    RaisePropertyChanged(name);
+                }
+                return;
+            }
+            dispatcher.BeginInvoke(new Action(() => {
+                foreach (var name in names) {
+                    RaisePropertyChanged(name);
+                }
+            }));
         }
 
         private static IEnumerable<string> BlockFilterNames(ISequenceContainer container, int depth) {
@@ -438,6 +454,16 @@ namespace NINA.Plugin.Nstn.Conditions {
         /// <see cref="ReuseFor"/> is returned as it is.
         /// </summary>
         private BandForecast Refresh(bool force) {
+            // Everything read from N.I.N.A.'s containers is read here, before refreshGate.
+            // N.I.N.A. 3.2 guards all containers with one static lock and calls Validate()
+            // of the items while holding it (SequenceContainer.AfterParentChanged); the
+            // wait instruction's Validate() asks this condition, so the UI thread can hold
+            // that lock and wait for refreshGate. Taking the container lock inside
+            // refreshGate (GetItemsSnapshot) from a background refresh then deadlocks both:
+            // on loading a sequence with a block filter, N.I.N.A. stopped taking input.
+            var blockFilters = FollowsBlockFilter
+                ? BlockFilterNames(Parent, 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : null;
             lock (refreshGate) {
                 if (!force && DateTime.UtcNow - lastRefreshUtc < ReuseFor) {
                     ShowNow(lastForecast);
@@ -454,8 +480,8 @@ namespace NINA.Plugin.Nstn.Conditions {
                     if (!options.HasSkyQuality) {
                         found.Add("Set the site's sky quality (SQM) in Options > Plugins > NSTN.");
                     }
-                    if (FollowsBlockFilter) {
-                        ResolveBlockFilter(options, found);
+                    if (blockFilters != null) {
+                        ResolveBlockFilter(blockFilters, options, found);
                     }
                     if (found.Count == 0) {
                         var astrometry = profileService.ActiveProfile.AstrometrySettings;

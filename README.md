@@ -113,6 +113,8 @@ wird je Profil.
 
 `samples/M31-NSTN-Block.json` braucht die Filter „Askar D1", „Ha" und „L" im Profil.
 
+![Bedingung mit „From this block's filter", Filter L](docs/block-filter-0.4.0.jpg)
+
 ## Nachtplan (ab 0.2.0)
 
 „Wait for NSTN window" zeigt unter sich, was die gebaute Struktur heute Nacht ab jetzt
@@ -158,7 +160,22 @@ Elternteil und findet sein Ziel nicht.
 | Voreinstellungen 0.3.0 laden (M31-NSTN-Duo.json, beide Feldreihenfolgen) | Askar D1, O III bzw. Hα wie gespeichert, 6 nm gesperrt; Hinweis beim Hα-Block; Fenster = Python-Port (O III 6 nm 22:18–04:30, Hα 6 nm 18:36–04:30) |
 | Filterwechsel in der Oberfläche (→ L-eXtreme 7 nm) | Band springt auf O III, 7 nm, Hinweis weg, Fenster 23:56–03:44 |
 | Filter des Profils 0.4.0 (Askar D1, Ha, L angelegt) | Zeilen erscheinen, Vorschläge D1 → O III 6 nm und L → Breitband, „Ha" ohne Vorschlag; per Knopf übernommen, Ha von Hand Custom 7 nm; im Profil gespeichert |
-| M31-NSTN-Block.json per `--sequencefile` | lädt ohne Fehler; **Anzeige im Block-Modus nicht angesehen** – ab hier kamen in N.I.N.A. keine Klicks der Computersteuerung mehr an |
+| M31-NSTN-Block.json per `--sequencefile` | lädt, N.I.N.A. bleibt bedienbar; Block „Askar D1": „Block filter: Askar D1 → OIII 6 nm", Fenster 22:18–04:30; Nachtplan rechnet mit O III 6 nm / Hα 7 nm / L/RGB |
+| Filter im Switch Filter umstellen (Askar D1 → Ha → L) | Band folgt in ≤ 30 s: H-alpha 656 nm, 7 nm, 18:48–03:44; dann L/RGB, 00:06–02:10 |
+
+**Zwei Fehler aus diesem Test, in 0.4.0 behoben:**
+
+- *Verklemmung beim Laden einer Sequenz im Block-Modus.* N.I.N.A. 3.2 schützt alle
+  Container mit **einer statischen Sperre** und ruft `Validate()` der Elemente unter dieser
+  Sperre auf; der Warte-Befehl fragt dabei die Bedingung. Die Bedingung las im
+  Hintergrund-Refresh die Elemente ihres Blocks (`GetItemsSnapshot`, nimmt die
+  Container-Sperre) **innerhalb** ihrer eigenen Sperre – überkreuzte Sperrreihenfolge.
+  Folge: N.I.N.A. nahm keine Eingaben mehr an, meldete sich aber als „Responding" (ein
+  wartender STA-Thread pumpt nur noch einen Teil der Nachrichten). Jetzt wird alles aus den
+  Containern **vor** der eigenen Sperre gelesen.
+- *Leere Bandauswahl nach Filterwechsel.* Die Bandliste war bei jedem Abruf eine neue
+  Liste; eine WPF-ComboBox setzt dann ihre Auswahl zurück. Jetzt gibt es je Katalogfilter
+  genau eine Liste, im Block-Modus immer die vollständige.
 
 0.1.1 behebt einen Befund aus diesem Test: 0.1.0 schrieb bei Leerdurchläufen je
 Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); jetzt nur bei
@@ -167,7 +184,8 @@ Block – ein Grund mehr für den Warte-Befehl.
 
 ## Bekannte Grenzen (Stand 0.4.0)
 
-- „From this block's filter" ist in N.I.N.A. noch nicht in der Anzeige geprüft (Laden ja).
+- „From this block's filter" folgt einem Filterwechsel mit bis zu 30 s Verzögerung
+  (Aktualisierungstakt), entschieden wird beim Prüfen vor jeder Aufnahme aber aktuell.
 - Umbenennen eines Filters im Profil wird erst nach „Reload filter list" oder erneutem
   Öffnen sichtbar; neue/gelöschte Filter sofort.
 - Nachtplan: nur die Blöcke direkt unter dem Warte-Befehl; andere Schleifenbedingungen als

@@ -97,11 +97,12 @@ namespace NINA.Plugin.Nstn {
             }
         }
 
+        // Existing list instances only, see Bands.Of.
         public IReadOnlyList<BandChoice> AvailableBands {
             get {
                 var preset = FilterCatalog.Find(choice);
                 if (preset != null) {
-                    return Bands.All.Where(b => preset.Find(b.Key) != null).ToList();
+                    return Bands.Of(preset);
                 }
                 return choice == Custom ? Bands.Lines : Array.Empty<BandChoice>();
             }
