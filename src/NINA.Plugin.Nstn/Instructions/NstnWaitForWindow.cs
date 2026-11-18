@@ -243,7 +243,7 @@ namespace NINA.Plugin.Nstn.Instructions {
         /// at any depth. Not the container's own conditions: if the container itself
         /// is closed, its loop ends and there is nothing to wait for.
         /// </summary>
-        private static IEnumerable<NstnWindowCondition> ConditionsBelow(ISequenceContainer container) {
+        internal static IEnumerable<NstnWindowCondition> ConditionsBelow(ISequenceContainer container) {
             if (container == null) {
                 yield break;
             }

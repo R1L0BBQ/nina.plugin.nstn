@@ -430,7 +430,8 @@ namespace NINA.Plugin.Nstn.Conditions {
             if (IsActive() && lastReportedOpen != open) {
                 lastReportedOpen = open;
                 var reason = forecast == null ? string.Join(" ", Issues) : NowSummary;
-                Logger.Info($"{nameof(NstnWindowCondition)} {ShortLabel} {(open ? "open" : "closed")}: {reason}");
+                // The block's name tells two blocks of the same band apart (a filter plan names them after its rows).
+                Logger.Info($"{nameof(NstnWindowCondition)} {ShortLabel} in '{Parent?.Name}' {(open ? "open" : "closed")}: {reason}");
             }
             return open;
         }

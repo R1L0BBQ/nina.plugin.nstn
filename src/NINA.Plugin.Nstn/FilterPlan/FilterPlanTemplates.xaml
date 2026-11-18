@@ -1,0 +1,146 @@
+<ResourceDictionary
+    x:Class="NINA.Plugin.Nstn.FilterPlan.FilterPlanTemplates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:NINA.Plugin.Nstn.FilterPlan"
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
+    xmlns:nstn="clr-namespace:NINA.Plugin.Nstn"
+    xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
+
+    <!--  Shown like an instruction (Smart Exposure style): the table, not the generated children.  -->
+    <!--  No x:Name anywhere inside SequenceItemContent (MC3093): RelativeSource instead of ElementName.  -->
+    <DataTemplate DataType="{x:Type local:NstnFilterPlan}">
+        <view:SequenceBlockView>
+            <view:SequenceBlockView.SequenceItemContent>
+                <StackPanel Orientation="Vertical">
+                    <ItemsControl IsEnabled="{Binding IsEditable}" ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2,0,0" Orientation="Horizontal">
+                                    <TextBlock VerticalAlignment="Center" Text="{nstn:T Plan_Filter}" />
+                                    <ComboBox
+                                        MinWidth="170"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        IsEditable="True"
+                                        ItemsSource="{Binding DataContext.FilterNames, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        Text="{Binding FilterName, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Text="#" />
+                                    <TextBox
+                                        MinWidth="40"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding Count}"
+                                        TextAlignment="Right" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Text="×" />
+                                    <ninactrl:UnitTextBox
+                                        MinWidth="60"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Text="{Binding ExposureSeconds}"
+                                        TextAlignment="Right"
+                                        Unit="s" />
+                                    <Button
+                                        Margin="10,0,0,0"
+                                        Padding="6,0,6,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        Content="{nstn:T Plan_Remove}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button
+                        Margin="0,4,0,0"
+                        Padding="6,0,6,0"
+                        HorizontalAlignment="Left"
+                        Command="{Binding AddRowCommand}"
+                        Content="{nstn:T Plan_AddFilter}"
+                        IsEnabled="{Binding IsEditable}" />
+                    <!--  Values for the whole plan  -->
+                    <WrapPanel
+                        Margin="0,6,0,0"
+                        IsEnabled="{Binding IsEditable}"
+                        Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="{nstn:T Plan_Gain}" />
+                        <TextBox
+                            MinWidth="45"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{Binding Gain}"
+                            TextAlignment="Right" />
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{nstn:T Plan_Offset}" />
+                        <TextBox
+                            MinWidth="45"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{Binding Offset}"
+                            TextAlignment="Right" />
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{nstn:T Plan_Binning}" />
+                        <ComboBox
+                            MinWidth="55"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            DisplayMemberPath="Name"
+                            ItemsSource="{Binding BinningModes}"
+                            SelectedItem="{Binding Binning}" />
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{nstn:T Plan_RoundsPerFilter}" />
+                        <TextBox
+                            MinWidth="35"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{Binding RoundsPerFilter}"
+                            TextAlignment="Right" />
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{nstn:T Plan_StopAfter}" />
+                        <TextBox
+                            MinWidth="35"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{Binding StopAfterFailures}"
+                            TextAlignment="Right" />
+                    </WrapPanel>
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Opacity="0.8"
+                        Text="{Binding Outline}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Margin="0,3,0,0"
+                        Text="{Binding Conditions[0].Summary}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </view:SequenceBlockView.SequenceItemContent>
+        </view:SequenceBlockView>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type local:NstnNightLeftCondition}">
+        <view:SequenceBlockView>
+            <view:SequenceBlockView.SequenceItemContent>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Text="{Binding Summary}"
+                    TextWrapping="Wrap" />
+            </view:SequenceBlockView.SequenceItemContent>
+        </view:SequenceBlockView>
+    </DataTemplate>
+</ResourceDictionary>
