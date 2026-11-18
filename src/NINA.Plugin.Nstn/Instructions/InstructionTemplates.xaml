@@ -129,6 +129,441 @@
         </view:SequenceBlockView>
     </DataTemplate>
 
+    <!--  Night Info: shaded twilight rectangles, positioned by ChartRect.Left.  -->
+    <DataTemplate x:Key="NstnShadeRect">
+        <Rectangle
+            Width="{Binding Width}"
+            Height="100"
+            Fill="{DynamicResource PrimaryBrush}"
+            Opacity="{Binding Opacity}" />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type local:NstnNightInfo}">
+        <view:SequenceBlockView>
+            <view:SequenceBlockView.SequenceItemContent>
+                <StackPanel Orientation="Vertical">
+                    <TextBlock Text="The night for this target - takes no time when the sequence runs" />
+
+                    <!--  Key data of the night.  -->
+                    <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Chart.Facts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,1,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Opacity="0.7" Text="{Binding Label}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding Text}"
+                                        TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!--  The chart: three curve panels, one row per band, the hour axis.  -->
+                    <Grid
+                        Margin="0,8,0,0"
+                        HorizontalAlignment="Left"
+                        Visibility="{Binding Chart.HasChart, Converter={StaticResource NstnPlanVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="480" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="100" />
+                            <RowDefinition Height="38" />
+                            <RowDefinition Height="48" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="18" />
+                        </Grid.RowDefinitions>
+
+                        <!--  Altitude: target (solid) and moon (dashed) over the twilight.  -->
+                        <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                            <TextBlock Text="Altitude" />
+                            <TextBlock Foreground="{DynamicResource ButtonBackgroundBrush}" Text="━ target" />
+                            <TextBlock Opacity="0.8" Text="┅ moon" />
+                        </StackPanel>
+                        <Canvas
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Width="480"
+                            Height="100"
+                            VerticalAlignment="Top"
+                            ClipToBounds="True">
+                            <Rectangle
+                                Width="480"
+                                Height="100"
+                                Fill="{DynamicResource PrimaryBrush}"
+                                Opacity="0.04" />
+                            <ItemsControl
+                                ItemContainerStyle="{StaticResource NstnBarItem}"
+                                ItemTemplate="{StaticResource NstnShadeRect}"
+                                ItemsPanel="{StaticResource NstnBarPanel}"
+                                ItemsSource="{Binding Chart.Twilight}" />
+                            <Line
+                                Opacity="0.15"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                X1="0"
+                                X2="480"
+                                Y1="33.3"
+                                Y2="33.3" />
+                            <Line
+                                Opacity="0.15"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                X1="0"
+                                X2="480"
+                                Y1="66.7"
+                                Y2="66.7" />
+                            <Line
+                                Opacity="0.5"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                StrokeDashArray="2 3"
+                                X1="0"
+                                X2="480"
+                                Y1="{Binding Chart.LimitTop}"
+                                Y2="{Binding Chart.LimitTop}" />
+                            <Line
+                                Opacity="0.5"
+                                Stroke="{DynamicResource ButtonBackgroundBrush}"
+                                StrokeDashArray="1 2"
+                                Visibility="{Binding Chart.TransitVisible, Converter={StaticResource NstnPlanVisibility}}"
+                                X1="{Binding Chart.TransitLeft}"
+                                X2="{Binding Chart.TransitLeft}"
+                                Y1="0"
+                                Y2="100" />
+                            <Polyline
+                                Opacity="0.8"
+                                Points="{Binding Chart.MoonAltitude}"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                StrokeDashArray="3 2"
+                                StrokeThickness="1.5" />
+                            <Polyline
+                                Points="{Binding Chart.TargetAltitude}"
+                                Stroke="{DynamicResource ButtonBackgroundBrush}"
+                                StrokeThickness="2" />
+                        </Canvas>
+                        <StackPanel
+                            Grid.Row="0"
+                            Grid.Column="2"
+                            Margin="6,0,0,0">
+                            <TextBlock
+                                FontSize="10"
+                                Opacity="0.7"
+                                Text="90°" />
+                            <TextBlock
+                                Margin="0,58,0,0"
+                                FontSize="10"
+                                Opacity="0.7"
+                                Text="{Binding Chart.LimitLabel, StringFormat='limit {0}'}" />
+                        </StackPanel>
+
+                        <!--  Distance between moon and target.  -->
+                        <TextBlock
+                            Grid.Row="1"
+                            VerticalAlignment="Center"
+                            Text="Moon distance" />
+                        <Canvas
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Width="480"
+                            Height="34"
+                            VerticalAlignment="Center"
+                            ClipToBounds="True">
+                            <Rectangle
+                                Width="480"
+                                Height="34"
+                                Fill="{DynamicResource PrimaryBrush}"
+                                Opacity="0.04" />
+                            <Polyline
+                                Opacity="0.8"
+                                Points="{Binding Chart.MoonSeparation}"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                StrokeThickness="1.5" />
+                        </Canvas>
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="10"
+                            Opacity="0.7"
+                            Text="0–180°" />
+
+                        <!--  Sky brightness towards the target; higher is darker.  -->
+                        <TextBlock
+                            Grid.Row="2"
+                            VerticalAlignment="Center"
+                            Text="Sky (V)" />
+                        <Canvas
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Width="480"
+                            Height="44"
+                            VerticalAlignment="Center"
+                            ClipToBounds="True">
+                            <Rectangle
+                                Width="480"
+                                Height="44"
+                                Fill="{DynamicResource PrimaryBrush}"
+                                Opacity="0.04" />
+                            <Line
+                                Opacity="0.5"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                StrokeDashArray="2 3"
+                                X1="0"
+                                X2="480"
+                                Y1="{Binding Chart.SqmTop}"
+                                Y2="{Binding Chart.SqmTop}" />
+                            <Polyline
+                                Points="{Binding Chart.SkyBrightness}"
+                                Stroke="{DynamicResource PrimaryBrush}"
+                                StrokeThickness="1.5" />
+                        </Canvas>
+                        <StackPanel
+                            Grid.Row="2"
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                FontSize="10"
+                                Opacity="0.7"
+                                Text="22 mag (dark)" />
+                            <TextBlock
+                                FontSize="10"
+                                Opacity="0.7"
+                                Text="{Binding Chart.SqmLabel}" />
+                            <TextBlock
+                                FontSize="10"
+                                Opacity="0.7"
+                                Text="16 mag" />
+                        </StackPanel>
+
+                        <!--  Moon up, then one row per band.  -->
+                        <ItemsControl
+                            Grid.Row="3"
+                            Grid.ColumnSpan="3"
+                            Margin="0,4,0,0"
+                            ItemsSource="{Binding Chart.Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="480" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="{Binding Label}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <Grid
+                                            Grid.Column="1"
+                                            Width="480"
+                                            Height="12"
+                                            ClipToBounds="True">
+                                            <Rectangle Fill="{DynamicResource PrimaryBrush}" Opacity="0.06" />
+                                            <ItemsControl
+                                                ItemContainerStyle="{StaticResource NstnBarItem}"
+                                                ItemsPanel="{StaticResource NstnBarPanel}"
+                                                ItemsSource="{Binding Bars}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <!--  Moon up in the moon's colour, the windows in the accent.  -->
+                                                        <Rectangle
+                                                            Width="{Binding Width}"
+                                                            Height="12"
+                                                            Opacity="{Binding Opacity}">
+                                                            <Rectangle.Style>
+                                                                <Style TargetType="Rectangle">
+                                                                    <Setter Property="Fill" Value="{DynamicResource ButtonBackgroundBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DataContext.IsMoon, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                                                                            <Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Rectangle.Style>
+                                                        </Rectangle>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="{Binding Summary}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!--  Hours, local time.  -->
+                        <ItemsControl
+                            Grid.Row="4"
+                            Grid.Column="1"
+                            Width="480"
+                            ItemContainerStyle="{StaticResource NstnBarItem}"
+                            ItemsPanel="{StaticResource NstnBarPanel}"
+                            ItemsSource="{Binding Chart.Ticks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="-6,0,0,0">
+                                        <Rectangle
+                                            Width="1"
+                                            Height="3"
+                                            Margin="6,0,0,0"
+                                            HorizontalAlignment="Left"
+                                            Fill="{DynamicResource PrimaryBrush}"
+                                            Opacity="0.5" />
+                                        <TextBlock
+                                            FontSize="10"
+                                            Opacity="0.7"
+                                            Text="{Binding Label}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!--  Now line and hover slots over the curves and rows.  -->
+                        <Canvas
+                            Grid.Row="0"
+                            Grid.RowSpan="4"
+                            Grid.Column="1"
+                            Width="480"
+                            IsHitTestVisible="False"
+                            Visibility="{Binding Chart.NowVisible, Converter={StaticResource NstnPlanVisibility}}">
+                            <Rectangle
+                                Canvas.Left="{Binding Chart.NowLeft}"
+                                Width="1"
+                                Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                                Fill="{DynamicResource PrimaryBrush}" />
+                        </Canvas>
+                        <ItemsControl
+                            Grid.Row="0"
+                            Grid.RowSpan="4"
+                            Grid.Column="1"
+                            Width="480"
+                            ItemContainerStyle="{StaticResource NstnBarItem}"
+                            ItemsPanel="{StaticResource NstnBarPanel}"
+                            ItemsSource="{Binding Chart.Slots}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Rectangle
+                                        Width="{Binding Width}"
+                                        Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        Fill="Transparent"
+                                        ToolTip="{Binding Tip}"
+                                        ToolTipService.InitialShowDelay="100" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                    <TextBlock
+                        Margin="0,2,0,0"
+                        Opacity="0.7"
+                        Text="{Binding BandsNote}"
+                        TextWrapping="Wrap" />
+
+                    <!--  How the target's sequence is built.  -->
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        Text="{Binding CheckSummary}"
+                        TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Warnings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <!--  The same mark N.I.N.A. puts on an instruction with issues.  -->
+                                    <Border
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Top"
+                                        Margin="0,1,0,0"
+                                        Background="{DynamicResource NotificationErrorBrush}"
+                                        CornerRadius="7">
+                                        <Path
+                                            Data="{DynamicResource ExclamationCircledSVG}"
+                                            Fill="{DynamicResource ButtonForegroundBrush}"
+                                            Stretch="Uniform" />
+                                    </Border>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding}"
+                                        TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Hints}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Top"
+                                        Margin="0,1,0,0"
+                                        Background="{DynamicResource ButtonBackgroundBrush}"
+                                        CornerRadius="7">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="10"
+                                            FontWeight="Bold"
+                                            Foreground="{DynamicResource ButtonForegroundBrush}"
+                                            Text="i" />
+                                    </Border>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding}"
+                                        TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Expander Margin="0,8,0,0" Header="How to build an NSTN sequence">
+                        <StackPanel Margin="0,4,0,0">
+                            <TextBlock FontFamily="Consolas" Text="{Binding GuideTree}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                Text="{Binding GuideRules}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Button
+                        Margin="0,6,0,0"
+                        Padding="8,2"
+                        HorizontalAlignment="Left"
+                        Command="{Binding RecalculateCommand}"
+                        Content="Recalculate" />
+                </StackPanel>
+            </view:SequenceBlockView.SequenceItemContent>
+        </view:SequenceBlockView>
+    </DataTemplate>
+
+    <DataTemplate x:Key="NINA.Plugin.Nstn.Instructions.NstnNightInfo_Mini">
+        <mini:MiniSequenceItem>
+            <mini:MiniSequenceItem.SequenceItemContent>
+                <TextBlock VerticalAlignment="Center" Text="NSTN Night Info" />
+            </mini:MiniSequenceItem.SequenceItemContent>
+        </mini:MiniSequenceItem>
+    </DataTemplate>
+
     <DataTemplate x:Key="NINA.Plugin.Nstn.Instructions.NstnWaitForWindow_Mini">
         <mini:MiniSequenceItem>
             <mini:MiniSequenceItem.SequenceItemContent>

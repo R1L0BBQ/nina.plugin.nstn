@@ -159,9 +159,9 @@ namespace Nstn.Core {
         // time helpers
         // -------------------------------------------------------------------
 
-        private static AstroTime Time(double epochMs) => new AstroTime((epochMs - J2000EpochMs) / MsPerDay);
+        internal static AstroTime Time(double epochMs) => new AstroTime((epochMs - J2000EpochMs) / MsPerDay);
 
-        private static double EpochMs(AstroTime time) => time.ut * MsPerDay + J2000EpochMs;
+        internal static double EpochMs(AstroTime time) => time.ut * MsPerDay + J2000EpochMs;
 
         public static DateTime ToUtcDateTime(double epochMs) =>
             DateTime.UnixEpoch.AddTicks((long)Math.Round(epochMs * TimeSpan.TicksPerMillisecond));
@@ -235,6 +235,14 @@ namespace Nstn.Core {
             }
             return null;
         }
+
+        /// <summary>First crossing of a threshold, falling (<paramref name="direction"/> &lt; 0) or rising, interpolated.</summary>
+        public static double? FirstCrossing(IReadOnlyList<double> times, IReadOnlyList<double> values, double threshold, int direction) =>
+            FirstCross(times, values, threshold, direction);
+
+        /// <summary>Intervals where the values are at or above a threshold, with interpolated edges.</summary>
+        public static List<Interval> AtOrAbove(IReadOnlyList<double> times, IReadOnlyList<double> values, double threshold) =>
+            Regions(times, values, threshold, v => v >= threshold);
 
         /// <summary>Everything in <paramref name="baseSegments"/> that is not covered by <paramref name="cuts"/>.</summary>
         public static List<Interval> Subtract(IReadOnlyList<Interval> baseSegments, IReadOnlyList<Interval> cuts) {

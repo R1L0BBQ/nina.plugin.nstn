@@ -8,6 +8,9 @@ using System.Linq;
 
 namespace Nstn.Core {
 
+    /// <summary>Everything the model knows about one night, one target and one site.</summary>
+    public sealed record NightBundle(DateOnly NightDate, NightResult Night, TargetResult Target, SkyResult Sky);
+
     /// <summary>The window of one band over one night, for one target and site.</summary>
     public sealed record BandForecast(
         DateOnly NightDate,
@@ -74,7 +77,7 @@ namespace Nstn.Core {
         private const int MaxEntries = 64;
 
         private readonly object gate = new object();
-        private readonly Dictionary<SkyKey, SkyResult> cache = new Dictionary<SkyKey, SkyResult>();
+        private readonly Dictionary<SkyKey, NightBundle> cache = new Dictionary<SkyKey, NightBundle>();
 
         public static WindowForecaster Shared { get; } = new WindowForecaster();
 
@@ -107,7 +110,7 @@ namespace Nstn.Core {
             WindowSettings settings) {
 
             var night = NightDateFor(utcMoment, timezone);
-            var sky = Sky(night, timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
+            var sky = Night(night, timezone, latitude, longitude, raDeg, decDeg, sqmZenith).Sky;
             return new BandForecast(
                 NightDate: night,
                 Band: band,
@@ -118,7 +121,11 @@ namespace Nstn.Core {
                 Sky: sky);
         }
 
-        private SkyResult Sky(DateOnly night, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqm) {
+        /// <summary>Sun, moon, target and sky of the night a moment belongs to - shared with the forecasts.</summary>
+        public NightBundle Night(DateTime utcMoment, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqmZenith) =>
+            Night(NightDateFor(utcMoment, timezone), timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
+
+        private NightBundle Night(DateOnly night, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqm) {
             // Rounded to well below anything that moves a two minute grid: a target
             // nudged by a framing tool must not recompute the night every time.
             var key = new SkyKey(night, Math.Round(latitude, 4), Math.Round(longitude, 4), timezone.Id,
@@ -131,16 +138,16 @@ namespace Nstn.Core {
 
             var nightResult = NightModel.ComputeNight(latitude, longitude, night, timezone);
             var target = NightModel.ComputeTarget(nightResult, raDeg, decDeg);
-            var sky = NightModel.ComputeSky(nightResult, target, sqm);
+            var bundle = new NightBundle(night, nightResult, target, NightModel.ComputeSky(nightResult, target, sqm));
 
             lock (gate) {
                 if (cache.Count >= MaxEntries) {
                     cache.Clear();
                 }
-                cache[key] = sky;
+                cache[key] = bundle;
                 Computations++;
             }
-            return sky;
+            return bundle;
         }
     }
 }

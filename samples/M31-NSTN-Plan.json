@@ -1,5 +1,5 @@
 {
-  "$id": "47",
+  "$id": "48",
   "$type": "NINA.Sequencer.Container.DeepSkyObjectContainer, NINA.Sequencer",
   "Target": {
     "$id": "1",
@@ -24,15 +24,24 @@
   },
   "Name": "M 31 – NSTN plan",
   "Conditions": {
-    "$id": "48",
+    "$id": "49",
     "$type": "System.Collections.ObjectModel.ObservableCollection`1[[NINA.Sequencer.Conditions.ISequenceCondition, NINA.Sequencer]], System.ObjectModel",
     "$values": []
   },
   "IsExpanded": true,
   "Items": {
-    "$id": "49",
+    "$id": "50",
     "$type": "System.Collections.ObjectModel.ObservableCollection`1[[NINA.Sequencer.SequenceItem.ISequenceItem, NINA.Sequencer]], System.ObjectModel",
     "$values": [
+      {
+        "$id": "47",
+        "$type": "NINA.Plugin.Nstn.Instructions.NstnNightInfo, NINA.Plugin.Nstn",
+        "ErrorBehavior": 0,
+        "Attempts": 1,
+        "Parent": {
+          "$ref": "48"
+        }
+      },
       {
         "$id": "43",
         "$type": "NINA.Sequencer.Container.SequentialContainer, NINA.Sequencer",
@@ -395,7 +404,7 @@
           "$values": []
         },
         "Parent": {
-          "$ref": "47"
+          "$ref": "48"
         },
         "ErrorBehavior": 0,
         "Attempts": 1
@@ -403,7 +412,7 @@
     ]
   },
   "Triggers": {
-    "$id": "50",
+    "$id": "51",
     "$type": "System.Collections.ObjectModel.ObservableCollection`1[[NINA.Sequencer.Trigger.ISequenceTrigger, NINA.Sequencer]], System.ObjectModel",
     "$values": []
   },

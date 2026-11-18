@@ -94,6 +94,11 @@ def nstn_wait():
             "ErrorBehavior": 0, "Attempts": 1}
 
 
+def nstn_info():
+    return {"$id": _id(), "$type": "NINA.Plugin.Nstn.Instructions.NstnNightInfo, NINA.Plugin.Nstn",
+            "ErrorBehavior": 0, "Attempts": 1}
+
+
 def light(seconds):
     return {"$id": _id(), "$type": f"{SEQ}.SequenceItem.Imaging.TakeExposure, {SEQ}",
             "ExposureTime": seconds, "Gain": -1, "Offset": -1,
@@ -171,6 +176,15 @@ def main(variant="full", out_dir=None):
                   block_filter_block("Ha", "Ha", 1, 5, 300),
                   block_filter_block("L", "L", 2, 10, 60)]
         passes, name = 1000, "M31-NSTN-Block.json"
+    elif variant == "mistakes":
+        # For the sequence check of NSTN Night Info: no wait in the loop, two blocks
+        # without an iteration limit, one block without exposures, a stray exposure.
+        blocks = [container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "Block A",
+                            items=[series(5, 300)], conditions=[nstn_window("OIII", 7.0)]),
+                  container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "Block B",
+                            items=[], conditions=[nstn_window("Ha", 7.0)]),
+                  light(60.0)]
+        passes, name = 1000, "M31-NSTN-mistakes.json"
     else:
         blocks = [band_block("O III 7 nm", "OIII", 7.0), band_block("L/RGB", "RGB", 89.0)]
         if variant == "closed-wait":
@@ -179,7 +193,7 @@ def main(variant="full", out_dir=None):
     rotation = container(f"{SEQ}.Container.SequentialContainer, {SEQ}", "Filter rotation",
                          items=blocks, conditions=[loop(passes)])
     dso = container(f"{SEQ}.Container.DeepSkyObjectContainer, {SEQ}", f"M 31 – NSTN {variant}",
-                    items=[rotation], extra={"Target": target})
+                    items=[nstn_info(), rotation], extra={"Target": target})
     link_parents(dso)
     out = Path(out_dir or Path(__file__).parent) / name
     out.write_text(json.dumps(dso, indent=2, ensure_ascii=False), encoding="utf-8")

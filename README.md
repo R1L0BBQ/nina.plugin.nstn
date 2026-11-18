@@ -14,8 +14,8 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 
 | Pfad | Inhalt |
 |---|---|
-| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments` (net8.0, keine NINA-/WPF-Abhängigkeit) |
-| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator- und Katalog-Tests (xUnit, net10.0) |
+| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments`, `NightInfo`, `SequenceCheck` (net8.0, keine NINA-/WPF-Abhängigkeit) |
+| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator-, Katalog-, Night-Info- und Sequenzprüfungs-Tests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
 
@@ -133,15 +133,65 @@ Exposure werden aufgelöst. Je Aufnahme kommt ein Zuschlag dazu (*Options → Pl
 Standard 10 s); Autofokus, Meridian-Flip, Filterwechsel und Schwenks sind nicht enthalten.
 Der Plan aktualisiert sich alle 20 s und per „Recalculate".
 
+## Night Info (ab 0.5.0)
+
+**„NSTN Night Info"** gehört an den Anfang eines Ziel-Containers. Der Befehl kostet beim
+Ablauf keine Zeit (er schreibt nur eine Zusammenfassung ins Protokoll) und zeigt im
+Sequencer:
+
+- **Eckdaten der Nacht:** Sonnenuntergang/-aufgang, bürgerliche, nautische und
+  astronomische Dämmerung, Dunkelzeit; Mondphase, Beleuchtung, Auf-/Untergang, mondfreie
+  Dunkelzeit, nächster Voll- bzw. Neumond; Ziel: Kulmination, Zeit über der Mindesthöhe,
+  nutzbare Zeit (davon mondfrei), Mondabstand über die nutzbare Zeit, dunkelster Himmel
+  Richtung Ziel; die Fenster je Band; der Zustand jetzt.
+- **Diagramm** von Sonnenuntergang − 30 min bis Sonnenaufgang + 30 min: Höhe von Ziel
+  (durchgezogen) und Mond (gestrichelt) über der Dämmerung (heller = hellerer Himmel),
+  Mindesthöhe, Kulmination; Mondabstand (0–180°); Himmelshelligkeit Richtung Ziel (V,
+  16–22 mag) mit SQM-Linie; Zeile „Moon up" (Deckkraft nach Beleuchtung) und je Band die
+  Fenster; Jetzt-Linie. Unter der Maus je 10 min: Uhrzeit, Zielhöhe und Luftmasse,
+  Mondhöhe und -abstand, Himmel, Sonnenhöhe, offene Fenster.
+- Die Bänder kommen aus den NSTN-Bedingungen unter dem Ziel; ohne Bedingung zeigt er
+  L/RGB, Hα, O III, S II (je 7 nm).
+- **Sequenzprüfung** des Ziel-Containers nach den Regeln, die N.I.N.A. tatsächlich anwendet –
+  Warnungen (rot) und Hinweise:
+
+  | Regel | Stufe |
+  |---|---|
+  | Schleife um die Blöcke ohne eigene Bedingung (läuft genau einmal) | Warnung |
+  | Schleife ohne „Wait for NSTN window" (dreht in 3.2 ungebremst) | Warnung |
+  | Warte-Befehl nicht an erster Stelle / innerhalb eines Blocks | Hinweis / Warnung |
+  | Mehrere Blöcke, einer ohne „Loop For Iterations" (Vorrang statt Rundlauf) | Hinweis |
+  | Block ohne Aufnahme | Warnung |
+  | Filter im Block passt nicht zum Band der Bedingung (über die Profil-Zuordnung) | Warnung |
+  | Eigene Probleme der Bedingung (kein SQM, Blockfilter fehlt/unbekannt …) | Warnung |
+  | Fenster öffnet an diesem Standort nie / heute Nacht nicht | Warnung / Hinweis |
+  | Aufnahmen in der Schleife außerhalb eines NSTN-Blocks | Hinweis |
+  | NSTN-Bedingung direkt am Ziel-Container | Warnung |
+  | Ziel kommt nicht über die Mindesthöhe bzw. nur außerhalb der Nacht | Warnung |
+  | Kein Meridian-Flip-Trigger (Ziel, Zwischen-Container oder darüber), obwohl das Ziel in der nutzbaren Zeit kulminiert | Hinweis |
+
+- **„How to build an NSTN sequence"** (aufklappbar, ebenso in der Plugin-Beschreibung):
+  Baum des empfohlenen Aufbaus und sieben Regeln – Bedingungen sind Schleifenbedingungen,
+  ein Block je Filter, „Loop For Iterations" für den Rundlauf, eigenes Ende der Schleife,
+  Warte-Befehl zuerst, Trigger am Ziel, laufende Aufnahmen werden nie abgebrochen.
+
+Aktualisiert wird alle 20 s (nur in der aktiven Sequenz) und per „Recalculate". Die Nacht
+teilt sich den Zwischenspeicher mit den Bedingungen (`WindowForecaster.Night`), Fenster und
+Anzeige können also nicht auseinanderlaufen.
+
+![NSTN Night Info in N.I.N.A. 3.2](docs/night-info-0.5.0.jpg)
+
 ## Beispiele
 
 `samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
 2 × 2 s). `samples/M31-NSTN-Plan.json`: eine Nacht im Rundlauf (O III und Hα je 5 × 300 s
 pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan.
-`samples/M31-NSTN-Duo.json`: Askar D1 an einer Farbkamera, je ein Block für O III und Hα. In N.I.N.A. über
+`samples/M31-NSTN-Duo.json`: Askar D1 an einer Farbkamera, je ein Block für O III und Hα. Alle Beispiele
+beginnen mit „NSTN Night Info". In N.I.N.A. über
 *Advanced Sequencer → Load sequence* laden; N.I.N.A. packt einen einzelnen Ziel-Container
 selbst in eine neue Sequenz. Erzeugt werden die Dateien mit
-`python samples/make_sample.py [full|plan|duo|block]` – wichtig für eigene Generatoren: jedes Element
+`python samples/make_sample.py [full|plan|duo|block]` (`mistakes` erzeugt eine absichtlich
+fehlerhafte Sequenz für die Sequenzprüfung) – wichtig für eigene Generatoren: jedes Element
 braucht `"Parent": {"$ref": …}` auf seinen Container, sonst hat es nach dem Laden keinen
 Elternteil und findet sein Ziel nicht.
 
@@ -163,7 +213,16 @@ Elternteil und findet sein Ziel nicht.
 | M31-NSTN-Block.json per `--sequencefile` | lädt, N.I.N.A. bleibt bedienbar; Block „Askar D1": „Block filter: Askar D1 → OIII 6 nm", Fenster 22:18–04:30; Nachtplan rechnet mit O III 6 nm / Hα 7 nm / L/RGB |
 | Filter im Switch Filter umstellen (Askar D1 → Ha → L) | Band folgt in ≤ 30 s: H-alpha 656 nm, 7 nm, 18:48–03:44; dann L/RGB, 00:06–02:10 |
 
-**Zwei Fehler aus diesem Test, in 0.4.0 behoben:**
+**Night Info 0.5.0 (18.11.2026, `--sequencefile`, M 31 bei 49,8° N, SQM 20,9):**
+
+| Prüfung | Ergebnis |
+|---|---|
+| M31-NSTN-Plan.json | Eckdaten plausibel (Untergang 16:47, Dunkel 18:44–05:53, Mond 55 %, untergeht 00:02, Kulmination 21:30 bei 82°), Fenster = Bedingungen (Hα 18:48–03:44, O III 23:56–03:44, L/RGB 00:06–02:10); Prüfung: 2 Hinweise (L/RGB ohne Iterationsgrenze, kein Meridian-Flip-Trigger) |
+| M31-NSTN-mistakes.json | 2 Warnungen (Block ohne Aufnahme, Schleife ohne Warte-Befehl), 4 Hinweise (2 × Vorrang, lose Aufnahme, Meridian-Flip) |
+| Tooltip, Leitfaden aufklappen, Laden ohne Verklemmung | ok |
+| Ausführen des Befehls im Sequenzlauf | **nicht geprüft** (nur Protokollzeile, kein Kamera-Lauf) |
+
+**Zwei Fehler aus dem Test vom 17.11., in 0.4.0 behoben:**
 
 - *Verklemmung beim Laden einer Sequenz im Block-Modus.* N.I.N.A. 3.2 schützt alle
   Container mit **einer statischen Sperre** und ruft `Validate()` der Elemente unter dieser
@@ -182,7 +241,7 @@ Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); je
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.4.0)
+## Bekannte Grenzen (Stand 0.5.0)
 
 - „From this block's filter" folgt einem Filterwechsel mit bis zu 30 s Verzögerung
   (Aktualisierungstakt), entschieden wird beim Prüfen vor jeder Aufnahme aber aktuell.
@@ -191,6 +250,9 @@ Block – ein Grund mehr für den Warte-Befehl.
 - Nachtplan: nur die Blöcke direkt unter dem Warte-Befehl; andere Schleifenbedingungen als
   „Loop For Iterations"/„Loop Until Time" werden genannt, aber nicht gerechnet; nur die
   laufende Nacht.
+- Night Info: Sequenzprüfung nur innerhalb des eigenen Ziel-Containers (Trigger darüber
+  zählen für den Meridian-Flip); Montierungstyp unbekannt, deshalb ist der fehlende Flip nur
+  ein Hinweis. Nur die laufende Nacht.
 - Uhrzeiten in der lokalen Zeit des Aufnahme-PCs.
 - Getestet nur mit der Simulator-Kamera, ohne Montierung, Filterrad, Guiding und
   Meridian-Flip.
