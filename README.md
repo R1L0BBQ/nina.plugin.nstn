@@ -311,6 +311,22 @@ sofort, ohne Neustart.
 
 ## Beispiele
 
+`samples/NSTN-LRGB-Ha.json`: **Beispielsequenz zum Teilen**, eine komplette Sequenz mit dem
+NSTN-Filterplan. Laden über *Advanced Sequencer → Load sequence*. Eine komplette Sequenz
+kann keine Vorlage sein, denn N.I.N.A. überspringt Wurzel-Container im Vorlagenordner
+(`TemplateController`). Inhalt:
+
+- **Start:** Kamera auf −10 °C kühlen, entparken.
+- **Ziel:** M 33.
+  - Auslöser: Meridianflip, Dither nach 3 Aufnahmen, AF nach Filterwechsel.
+  - Darin: Hinweis, NSTN Night Info, warten bis zur nautischen Dämmerung und bis 20° Höhe, schwenken und zentrieren, Guiding starten.
+  - Filterplan: L, R, G, B je 5 × 120 s und Ha 5 × 300 s, Runden je Filter 2.
+- **Ende:** Guiding stoppen, aufwärmen, parken.
+
+Erzeugt wird die Datei mit N.I.N.A.s eigenem Serializer über `tests\Run-NinaChecks.ps1
+-WriteSequence`. Dabei wird geprüft, dass N.I.N.A. sie ohne unbekannte Typen lädt und
+unverändert wieder speichert.
+
 `samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
 2 × 2 s). `samples/M31-NSTN-Plan.json`: eine Nacht im Rundlauf (O III und Hα je 5 × 300 s
 pro Durchlauf, L/RGB absichtlich ohne Grenze) für den Nachtplan.
@@ -386,7 +402,20 @@ Block – ein Grund mehr für den Warte-Befehl.
 | Abnahme 3.2.0.9001 (Testinstanz, NSTN-Uhr 05:40, Plan Rundlauf mit Night Info, Ziel 6 min vor dem Meridian) | Meridian-Flip echt ausgeführt (pierWest → pierEast), danach weiter belichtet; 30 Aufnahmen, 13 × AF nach Filterwechsel, 29 × Dither erfolgreich; Night Info im Lauf ausgeführt (Protokollzeile) |
 | Abnahme 3.3.0.1069 (ausgepackt, dasselbe net8-Build 0.7.0, gleicher Lauf) | Meridian-Flip echt ausgeführt; 30 Aufnahmen, 13 × AF, 29 × Dither erfolgreich; Night Info ausgeführt |
 
-## Bekannte Grenzen (Stand 0.7.0)
+## 0.7.1 (18.11.2026)
+
+Neu sind die Beispielsequenz `samples/NSTN-LRGB-Ha.json` (siehe [Beispiele](#beispiele)) und ein
+eigener Text für Breitband, wenn ein Fenster an diesem Standort nie öffnet. Bisher nannte die
+Meldung auch für L/RGB „7 nm“ und riet zur Schmalband-Schwelle.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 213/213 Kerntests |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 119/119; neu die Meldung „öffnet nie“ für Breitband und Schmalband an einer echten Bedingung im Ziel-Container. Die Gegenprobe mit dem alten Text fällt. |
+| `tests\Run-NinaChecks.ps1 -WriteSequence` | Beispielsequenz: Laden und erneutes Speichern ergeben dieselbe Datei, keine unbekannten Typen |
+| Testinstanz 3.2.0.9001 mit 0.7.1 und einer Profilkopie (Filter L, R, G, B, S2, Ha, O3) | Beispielsequenz geladen, keine Fehler oder Warnungen im Protokoll, Filterplan passt zu seinen Zeilen. Angesehen wurde die Ansicht mit dem 0.7.0-Build: alle Teile von Start bis Ende vorhanden |
+
+## Bekannte Grenzen (Stand 0.7.1)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

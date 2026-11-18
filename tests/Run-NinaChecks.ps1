@@ -20,12 +20,16 @@
 .PARAMETER WriteGolden
     Schreibt tests\NINA.Plugin.Nstn.Checks\golden\filterplan-3.2.json neu und prüft nichts.
     Nur nach einer gewollten Änderung am Sequenzformat; die Änderung im Diff ansehen.
+.PARAMETER WriteSequence
+    Schreibt die Beispielsequenz zum Teilen (samples\NSTN-LRGB-Ha.json) neu und prüft nur,
+    dass N.I.N.A. sie ohne unbekannte Typen lädt und unverändert wieder speichert.
 #>
 param(
     [string]$NinaDir = "C:\Program Files\N.I.N.A. - Nighttime Imaging 'N' Astronomy",
     [switch]$NoRuns,
     [string]$OutDir = '',
-    [switch]$WriteGolden
+    [switch]$WriteGolden,
+    [switch]$WriteSequence
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,6 +63,8 @@ try {
     $exe = Join-Path $publish 'NINA.Plugin.Nstn.Checks.exe'
     if ($WriteGolden) {
         & $exe (Join-Path $scratch 'out') write-golden $golden
+    } elseif ($WriteSequence) {
+        & $exe (Join-Path $scratch 'out') write-sequence (Join-Path $root 'samples\NSTN-LRGB-Ha.json')
     } elseif ($NoRuns) {
         & $exe (Join-Path $scratch 'out') --no-runs
     } else {

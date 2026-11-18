@@ -535,7 +535,10 @@ namespace NINA.Plugin.Nstn.Conditions {
             } else {
                 var night = Text.Date(forecast.NightDate);
                 if (forecast.NeverOpensAtSite) {
-                    WindowSummary = Text.T("Cond_NeverAtSite", ShortLabel, BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith);
+                    // Broadband keeps its bandwidth field but does not use it, and its own threshold applies.
+                    WindowSummary = IsNarrowband
+                        ? Text.T("Cond_NeverAtSite", ShortLabel, BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith)
+                        : Text.T("Cond_NeverAtSiteBroadband", ShortLabel, forecast.MinimumSkyBrightness, forecast.SqmZenith);
                 } else if (forecast.Segments.Count == 0) {
                     WindowSummary = Text.T("Cond_TonightNever", night);
                 } else {

@@ -83,6 +83,13 @@ namespace NINA.Plugin.Nstn.Checks {
                 Logger.CloseAndFlush();
                 return 0;
             }
+            if (args.Length > 2 && args[1] == "write-sequence") {
+                var root = SequenceWriter.WriteShareable(args[2], profile, converter, template);
+                var problems = SequenceWriter.RoundTrip(args[2], profile, root, template);
+                Console.WriteLine(problems.Count == 0 ? "load and save again: identical, no unknown types" : string.Join(Environment.NewLine, problems));
+                Logger.CloseAndFlush();
+                return problems.Count == 0 ? 0 : 1;
+            }
             try {
                 CloneChecks();
                 DropAndTemplateChecks();
@@ -90,6 +97,7 @@ namespace NINA.Plugin.Nstn.Checks {
                 ValidateChecks();
                 FailureChecks();
                 GoldenChecks();
+                NeverAtSiteChecks();
                 if (runs) {
                     RunChecks();
                 }
@@ -404,6 +412,54 @@ namespace NINA.Plugin.Nstn.Checks {
             Check("golden: the file's children are kept (image type DARK)", FirstExposure(plan).ImageType == "DARK" && plan.ActualStructure == plan.ExpectedStructure, plan.ActualStructure);
             Check("golden: saving it again gives the same file", converter.Serialize(loaded) == golden, "format changed - if on purpose, write a new golden file");
             Check("golden: this version still writes the same file", GoldenSequence() == golden, "format changed - if on purpose, write a new golden file");
+        }
+
+        // -------------------------------------------------------------------
+        // A band that never opens at the site: the text of the condition
+        // -------------------------------------------------------------------
+
+        private static void NeverAtSiteChecks() {
+            Console.WriteLine();
+            Console.WriteLine("== Never opens at this site (broadband and narrowband text) ==");
+            // SQM 20.5 is below the broadband threshold 20.6; at 17.0 H-alpha 7 nm cannot reach 23.1 in band either.
+            foreach (var (line, sqm, key) in new[] { (Bands.Broadband, 20.5, "Cond_NeverAtSiteBroadband"), ("Ha", 17.0, "Cond_NeverAtSite") }) {
+                var site = Stub.Create<IProfileService>();
+                var p = site.ActiveProfile;
+                p.AstrometrySettings.Latitude = 49.8;
+                p.AstrometrySettings.Longitude = 6.6;
+                ((Stub)(object)p.PluginSettings).Handler = (method, a) => {
+                    if (method.Name != "TryGetValue" || (string)a[1] != "SkyQuality") {
+                        return method.Name == "TryGetValue" ? false : Stub.NotHandled;
+                    }
+                    a[2] = sqm;
+                    return true;
+                };
+                var dso = SequenceWriter.Construct<DeepSkyObjectContainer>(site);
+                dso.Target = new NINA.Astrometry.InputTarget(NINA.Astrometry.Angle.ByDegree(49.8), NINA.Astrometry.Angle.ByDegree(6.6), null) {
+                    TargetName = "M 33",
+                    InputCoordinates = new NINA.Astrometry.InputCoordinates(new NINA.Astrometry.Coordinates(
+                        NINA.Astrometry.Angle.ByHours(1.5639), NINA.Astrometry.Angle.ByDegree(30.66), NINA.Astrometry.Epoch.J2000)),
+                };
+                var condition = new NstnWindowCondition(site) { Line = line, BandwidthNm = 7 };
+                var block = new SequentialContainer { Name = "Block" };
+                block.Add(condition);
+                dso.Add(block);
+                // Adding it schedules a forced refresh in the background; until that has run a
+                // refresh without the target may still be cached.
+                BandForecast forecast = null;
+                for (var i = 0; i < 50 && (forecast = condition.CurrentForecast()) == null; i++) {
+                    System.Threading.Thread.Sleep(100);
+                }
+                if (forecast == null) {
+                    Check($"{line}: a forecast", false, string.Join(" / ", condition.Issues));
+                    continue;
+                }
+                var expected = line == Bands.Broadband
+                    ? Text.T(key, condition.ShortLabel, forecast.MinimumSkyBrightness, forecast.SqmZenith)
+                    : Text.T(key, condition.ShortLabel, condition.BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith);
+                Check($"{line} at SQM {sqm}: never opens at this site", forecast.NeverOpensAtSite, $"needs {forecast.MinimumSkyBrightness:0.00}, site {forecast.SqmZenith:0.00}");
+                Check($"{line} at SQM {sqm}: its own text ({key})", condition.WindowSummary == expected, condition.WindowSummary);
+            }
         }
 
         // -------------------------------------------------------------------

@@ -1,21 +1,32 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using NINA.Astrometry;
+using NINA.Core.Locale;
+using NINA.Core.Model.Equipment;
 using NINA.Plugin.Nstn.FilterPlan;
 using NINA.Plugin.Nstn.Instructions;
 using NINA.Profile.Interfaces;
+using NINA.Sequencer;
+using NINA.Sequencer.Conditions;
 using NINA.Sequencer.Container;
+using NINA.Sequencer.SequenceItem;
+using NINA.Sequencer.SequenceItem.Camera;
 using NINA.Sequencer.SequenceItem.Connect;
+using NINA.Sequencer.SequenceItem.Guider;
+using NINA.Sequencer.SequenceItem.Platesolving;
 using NINA.Sequencer.SequenceItem.Telescope;
 using NINA.Sequencer.SequenceItem.Utility;
 using NINA.Sequencer.Serialization;
+using NINA.Sequencer.Trigger;
 using NINA.Sequencer.Trigger.Autofocus;
 using NINA.Sequencer.Trigger.Guider;
 using NINA.Sequencer.Trigger.MeridianFlip;
+using NINA.Sequencer.Utility.DateTimeProvider;
 
 namespace NINA.Plugin.Nstn.Checks {
 
@@ -82,13 +93,199 @@ namespace NINA.Plugin.Nstn.Checks {
             Console.WriteLine(FormattableString.Invariant($"LST {lst:0.0000} h, meridian in {minutes} min at {DateTime.Now.AddMinutes(minutes):HH:mm:ss}; JNow RA {jnow.RA:0.0000} h, Dec {jnow.Dec:0.00}"));
         }
 
+        /// <summary>
+        /// Writes the sample sequence to share (samples/NSTN-LRGB-Ha.json), a complete
+        /// sequence for "Load sequence". A complete sequence cannot be a template:
+        /// N.I.N.A.'s TemplateController skips root containers.
+        ///
+        /// Start: cool to -10 °C, unpark. Target M 33 with Meridian Flip, Dither after 3
+        /// exposures and AF after filter change; inside Night Info, wait for nautical dusk
+        /// and 20° altitude (centering needs stars and the target above the horizon),
+        /// center, start guiding, filter plan L/R/G/B 5 × 120 s and Ha 5 × 300 s, 2 rounds per
+        /// filter (halves the AF runs). End: stop guiding, warm, park. Names in English, as
+        /// N.I.N.A.'s plugin loader gives them; N.I.N.A. keeps saved names.
+        /// </summary>
+        public static ISequenceRootContainer WriteShareable(string path, IProfileService profile, SequenceJsonConverter converter, NstnFilterPlan template) {
+            Loc.Instance.ReloadLocale("en-US");
+            // The plan builds "Switch filter" from the profile's list: a filter wheel with the plan's filters.
+            var filters = profile.ActiveProfile.FilterWheelSettings.FilterWheelFilters;
+            filters.Clear();
+            foreach (var (filter, position) in new[] { "L", "R", "G", "B", "Ha" }.Select((f, i) => (f, i))) {
+                filters.Add(new FilterInfo(filter, 0, (short)position));
+            }
+
+            var start = Named(new StartAreaContainer());
+            start.Add(Note("Prepares the equipment. Set the cooling temperature for your camera; " +
+                "connect the equipment before you start the sequence."));
+            var cool = Named(Construct<CoolCamera>(profile));
+            cool.Temperature = -10;
+            start.Add(cool);
+            start.Add(Named(Construct<UnparkScope>(profile)));
+
+            var dso = Named(Construct<DeepSkyObjectContainer>(profile));
+            dso.Name = "M 33";
+            dso.Target = new InputTarget(Angle.ByDegree(0), Angle.ByDegree(0), null) {
+                TargetName = "M 33",
+                // J2000 (SIMBAD): 01h 33m 50.02s, +30° 39′ 36.7″
+                InputCoordinates = new InputCoordinates(new Coordinates(
+                    Angle.ByHours(1 + 33 / 60.0 + 50.02 / 3600.0), Angle.ByDegree(30 + 39 / 60.0 + 36.7 / 3600.0), Epoch.J2000)),
+            };
+            dso.Add(Named(Construct<MeridianFlipTrigger>(profile)));
+            var dither = Named(Construct<DitherAfterExposures>(profile));
+            dither.AfterExposures = 3;
+            dso.Add(dither);
+            dso.Add(Named(Construct<AutofocusAfterFilterChange>(profile)));
+
+            dso.Add(Note("Requires the NSTN plugin 0.7.0 or later and the SQM value of your site in Options > Plugins > NSTN. " +
+                "Set your target here (name search, Framing or Sky Atlas). The filter names in the NSTN filter plan must match " +
+                "the filter wheel list of your profile: pick yours in each row. NSTN Night Info shows the night and checks the setup."));
+            dso.Add(Named(new NstnNightInfo(profile)));
+            // A real calculator: with a stub that fails, WaitForTime recurses between UpdateTime and Validate.
+            var nauticalDusk = new NauticalDuskProvider(new NighttimeCalculator(profile));
+            dso.Add(Named(new WaitForTime(new List<IDateTimeProvider> { nauticalDusk }, nauticalDusk)));
+            var altitude = Named(Construct<WaitForAltitude>(profile));
+            altitude.Data.Offset = 20;
+            dso.Add(altitude);
+            dso.Add(Named(Construct<Center>(profile)));
+            dso.Add(Named(Construct<StartGuiding>(profile)));
+            var plan = (NstnFilterPlan)template.Clone();
+            plan.Rows.Clear();
+            foreach (var filter in new[] { "L", "R", "G", "B" }) {
+                plan.Rows.Add(new FilterPlanRow { FilterName = filter, Count = 5, ExposureSeconds = 120 });
+            }
+            plan.Rows.Add(new FilterPlanRow { FilterName = "Ha", Count = 5, ExposureSeconds = 300 });
+            plan.RoundsPerFilter = 2;
+            dso.Add(plan);
+
+            var targets = Named(new TargetAreaContainer());
+            targets.Add(dso);
+
+            var end = Named(new EndAreaContainer());
+            end.Add(Note("Runs once the filter plan has ended: no NSTN window opens again tonight."));
+            end.Add(Named(Construct<StopGuiding>(profile)));
+            end.Add(Named(Construct<WarmCamera>(profile)));
+            end.Add(Named(Construct<ParkScope>(profile)));
+
+            var root = Named(new SequenceRootContainer());
+            root.Name = "NSTN LRGB + Ha";
+            root.Add(start);
+            root.Add(targets);
+            root.Add(end);
+
+            File.WriteAllText(path, converter.Serialize(root));
+            Console.WriteLine($"written: {path} ({plan.ActualStructure})");
+            return root;
+        }
+
+        /// <summary>
+        /// Loads the written file the way N.I.N.A. does (factory templates of every type in
+        /// it, clone, populate) and serializes it again. Returns the problems: types the
+        /// factory did not know (they would load as "Unknown") and any difference to the file.
+        /// </summary>
+        public static List<string> RoundTrip(string path, IProfileService profile, ISequenceRootContainer written, NstnFilterPlan template) {
+            // Every type in the file, the runners of the triggers included.
+            var types = new HashSet<Type>();
+            IDateTimeProvider provider = null;
+            void Collect(ISequenceContainer container) {
+                types.Add(container.GetType());
+                foreach (var condition in (container as IConditionable)?.GetConditionsSnapshot() ?? new List<ISequenceCondition>()) {
+                    types.Add(condition.GetType());
+                }
+                foreach (var trigger in (container as ITriggerable)?.GetTriggersSnapshot() ?? new List<ISequenceTrigger>()) {
+                    types.Add(trigger.GetType());
+                    if (trigger is SequenceTrigger { TriggerRunner: not null } withRunner) {
+                        Collect(withRunner.TriggerRunner);
+                    }
+                }
+                foreach (var item in container.GetItemsSnapshot()) {
+                    if (item is ISequenceContainer child) {
+                        Collect(child);
+                    } else {
+                        types.Add(item.GetType());
+                        provider ??= (item as WaitForTime)?.SelectedProvider;
+                    }
+                }
+            }
+            Collect(written);
+            // Factory templates as MEF builds them: fresh, unconfigured, with a name (the
+            // factory's sidebar filter reads every name). Clones of the configured entities
+            // would share objects such as FilterInfo, which Newtonsoft then refuses to reuse.
+            var providers = new List<IDateTimeProvider> { provider };
+            var fresh = types.Select(t => {
+                var entity = t == typeof(NstnFilterPlan) ? (ISequenceEntity)template.Clone()
+                    : t == typeof(WaitForTime) ? new WaitForTime(providers)
+                    : Construct(t, profile);
+                entity.Name ??= t.Name;
+                return entity;
+            }).ToList();
+            var factory = new SequencerFactory(profile,
+                fresh.OfType<ISequenceItem>().Where(e => e is not ISequenceContainer).ToList(),
+                fresh.OfType<ISequenceCondition>().ToList(),
+                fresh.OfType<ISequenceTrigger>().ToList(),
+                fresh.OfType<ISequenceContainer>().ToList(),
+                providers);
+            var converter = new SequenceJsonConverter(factory);
+
+            var json = File.ReadAllText(path);
+            var loaded = converter.Deserialize(json);
+            var problems = new List<string>();
+            var unknown = new List<string>();
+            void Find(ISequenceContainer container) {
+                foreach (var entity in new ISequenceEntity[] { container }
+                    .Concat((container as IConditionable)?.GetConditionsSnapshot() ?? new List<ISequenceCondition>())
+                    .Concat((container as ITriggerable)?.GetTriggersSnapshot() ?? new List<ISequenceTrigger>())
+                    .Concat(container.GetItemsSnapshot().Where(i => i is not ISequenceContainer))) {
+                    if (entity.GetType().Name.StartsWith("Unknown", StringComparison.Ordinal)) {
+                        unknown.Add(entity.GetType().Name);
+                    }
+                }
+                foreach (var child in container.GetItemsSnapshot().OfType<ISequenceContainer>()) {
+                    Find(child);
+                }
+                foreach (var trigger in ((container as ITriggerable)?.GetTriggersSnapshot() ?? new List<ISequenceTrigger>()).OfType<SequenceTrigger>()) {
+                    if (trigger.TriggerRunner != null) {
+                        Find(trigger.TriggerRunner);
+                    }
+                }
+            }
+            Find(loaded);
+            if (unknown.Count > 0) {
+                problems.Add("unknown after load: " + string.Join(", ", unknown));
+            }
+            var again = converter.Serialize(loaded);
+            if (again != json) {
+                var a = json.Split('\n');
+                var b = again.Split('\n');
+                var line = Enumerable.Range(0, Math.Min(a.Length, b.Length)).FirstOrDefault(i => a[i] != b[i], Math.Min(a.Length, b.Length));
+                problems.Add($"saved again differs from line {line + 1}: '{(line < a.Length ? a[line].Trim() : "")}' vs '{(line < b.Length ? b[line].Trim() : "")}'");
+            }
+            return problems;
+        }
+
+        private static Annotation Note(string text) => Named(new Annotation { Text = text });
+
+        /// <summary>What N.I.N.A.'s plugin loader does after constructing: the name from the export metadata.</summary>
+        private static T Named<T>(T entity) where T : ISequenceEntity {
+            var name = typeof(T).GetCustomAttributes<ExportMetadataAttribute>().FirstOrDefault(m => m.Name == "Name")?.Value as string;
+            if (name != null) {
+                entity.Name = name.StartsWith("Lbl_", StringComparison.Ordinal) ? Loc.Instance[name] : name;
+            }
+            return entity;
+        }
+
         /// <summary>What MEF does: the importing constructor, every interface a stub.</summary>
-        private static T Construct<T>(IProfileService profile) {
-            var ctor = typeof(T).GetConstructors().First(c => c.GetCustomAttribute<ImportingConstructorAttribute>() != null);
+        internal static T Construct<T>(IProfileService profile) => (T)Construct(typeof(T), profile);
+
+        /// <summary>As above; a type without an importing constructor (the containers) takes its parameterless one.</summary>
+        private static ISequenceEntity Construct(Type type, IProfileService profile) {
+            var ctor = type.GetConstructors().FirstOrDefault(c => c.GetCustomAttribute<ImportingConstructorAttribute>() != null);
+            if (ctor == null) {
+                return (ISequenceEntity)Activator.CreateInstance(type);
+            }
             var args = ctor.GetParameters()
                 .Select(p => p.ParameterType == typeof(IProfileService) ? profile : p.ParameterType.IsInterface ? Stub.Create(p.ParameterType) : null)
                 .ToArray();
-            return (T)ctor.Invoke(args);
+            return (ISequenceEntity)ctor.Invoke(args);
         }
     }
 }

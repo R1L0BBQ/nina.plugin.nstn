@@ -75,6 +75,7 @@
   "Issue_NoSqm": "Himmelsqualität des Standorts (SQM) unter {nina:Options} > {nina:Plugins} > NSTN eintragen.",
   "Cond_IssueFailed": "NSTN-Berechnung fehlgeschlagen: {0}",
   "Cond_NeverAtSite": "Öffnet an diesem Standort nie: {0} mit {1:0.#} nm braucht einen Himmel von mindestens {2:0.00} mag/arcsec², der Standort hat {3:0.00}. Einen schmaleren Filter verwenden oder die Schmalband-Schwelle in den Plugin-Optionen senken.",
+  "Cond_NeverAtSiteBroadband": "Öffnet an diesem Standort nie: {0} braucht einen Himmel von mindestens {1:0.00} mag/arcsec², der Standort hat {2:0.00}. Die Breitband-Schwelle in den Plugin-Optionen senken oder auf diesen Filter verzichten.",
   "Cond_TonightNever": "Heute Nacht ({0}): nie offen",
   "Cond_Tonight": "Heute Nacht ({0}): {1} · {2}",
   "Cond_NoForecast": "Keine Vorhersage",

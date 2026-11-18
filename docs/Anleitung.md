@@ -10,8 +10,8 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.7.0 mit dem **NSTN-Filterplan**. Alle anderen Teile
-gibt es seit 0.6.0.
+Diese Anleitung beschreibt Version 0.7.1. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+alle anderen Teile seit 0.6.0.
 
 ## Inhalt
 
@@ -183,6 +183,38 @@ Unter den Feldern zeigt der Plan:
   Die schwachen Linien bekommen mehr je Runde.
 - **Breitband nur in der mondfreien Zeit:** L 10 × 120 s als eigene Zeile. Ihr Fenster
   öffnet nur, wenn der Himmel dunkel genug ist; sonst wird sie übersprungen.
+
+### Fertige Beispielsequenz
+
+`NSTN-LRGB-Ha.json` ist eine komplette Sequenz zum Laden und Weitergeben. Sie liegt im
+Repository unter `samples/`.
+
+- **Laden:** im *Sequenzer* unter *Advanced Sequencer* das Ordnersymbol „Sequenz laden“.
+- **Inhalt:**
+  - Start: Kamera auf −10 °C kühlen, entparken.
+  - Ziel M 33 mit den Auslösern Meridianflip, Dither nach 3 Aufnahmen und AF nach Filterwechsel.
+  - Im Ziel: NSTN-Nachtinfo, warten bis zur nautischen Dämmerung und bis das Ziel 20° hoch
+    steht, dann schwenken und zentrieren, Guiding starten und der Filterplan: L, R, G, B je
+    5 × 120 s, Ha 5 × 300 s, Runden je Filter 2.
+  - Ende: Guiding stoppen, Kamera aufwärmen, parken.
+- **Danach anpassen:**
+  - Ziel (Namenssuche, Bildausschnitt oder Himmelsatlas);
+  - Kühltemperatur;
+  - die Filter in den Zeilen, falls sie im Profil anders heißen. Der Plan meldet das rot.
+
+Die Wartebefehle vor dem Zentrieren haben einen Grund. Der Plan wartet zwar selbst auf sein
+erstes Fenster, Zentrieren und Guiding laufen aber vorher. Ohne die Wartebefehle würde
+N.I.N.A. in der hellen Dämmerung oder unter den Horizont schwenken.
+
+> **Breitband an hellen Standorten:** L/RGB braucht einen Himmel, der Richtung Ziel dunkler
+> ist als die Breitband-Schwelle (Standard 20,6). Liegt der SQM-Wert des Standorts darunter,
+> öffnen die L-, R-, G- und B-Zeilen nie. Die Nachtinfo warnt dann „öffnet nie“, und
+> belichtet wird nur Ha.
+
+Eine komplette Sequenz kann keine Vorlage im Vorlagenordner sein, denn N.I.N.A. lässt dort
+nur Teile einer Sequenz zu. Wer nur den Ziel-Container als Vorlage will, hat nach dem Laden zwei Wege: den Knopf
+„Als Vorlage speichern“ in der Kopfzeile des Containers, oder den Container in die
+Vorlagenliste ziehen.
 
 ---
 

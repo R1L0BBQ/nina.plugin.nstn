@@ -75,6 +75,7 @@
   "Issue_NoSqm": "Set the site's sky quality (SQM) in {nina:Options} > {nina:Plugins} > NSTN.",
   "Cond_IssueFailed": "NSTN calculation failed: {0}",
   "Cond_NeverAtSite": "Never opens at this site: {0} at {1:0.#} nm needs a sky of at least {2:0.00} mag/arcsec², the site has {3:0.00}. Use a narrower filter or lower the narrowband threshold in the plugin options.",
+  "Cond_NeverAtSiteBroadband": "Never opens at this site: {0} needs a sky of at least {1:0.00} mag/arcsec², the site has {2:0.00}. Lower the broadband threshold in the plugin options or drop this filter.",
   "Cond_TonightNever": "Tonight ({0}): never open",
   "Cond_Tonight": "Tonight ({0}): {1} · {2}",
   "Cond_NoForecast": "No forecast",
