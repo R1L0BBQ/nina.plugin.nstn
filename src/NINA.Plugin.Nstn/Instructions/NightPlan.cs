@@ -116,6 +116,9 @@ namespace NINA.Plugin.Nstn.Instructions {
                         var end = now + time.RemainingTime.TotalMilliseconds;
                         endMs = endMs == null ? end : Math.Min(endMs.Value, end);
                         break;
+                    case FilterPlan.NstnNightLeftCondition:
+                        // Ends when no window opens again: the simulation stops there anyway.
+                        break;
                     default:
                         notes.Add(Text.T("Plan_LoopNotEstimated", Text.Quote(condition.Name)));
                         break;

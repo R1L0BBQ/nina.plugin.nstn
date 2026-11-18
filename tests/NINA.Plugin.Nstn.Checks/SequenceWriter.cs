@@ -30,7 +30,7 @@ namespace NINA.Plugin.Nstn.Checks {
     /// (Alpaca discovery), connect all equipment, slew, Night Info (FLIPTEST_NIGHT_INFO=0
     /// leaves it out) and a filter plan with 2 × 5 s per filter; on the target Meridian
     /// Flip, Dither after every exposure and AF after filter change. FLIPTEST_ROUNDS sets
-    /// "rounds per filter" (default 1).
+    /// "rounds per filter" (default 1); FLIPTEST_VIEW_ONLY=1 writes the target with the plan only.
     /// </summary>
     internal static class SequenceWriter {
 
@@ -49,20 +49,24 @@ namespace NINA.Plugin.Nstn.Checks {
                 TargetName = "Flip test Dec +70",
                 InputCoordinates = new InputCoordinates(jnow),
             };
-            dso.Add(Construct<MeridianFlipTrigger>(profile));
-            var dither = Construct<DitherAfterExposures>(profile);
-            dither.AfterExposures = 1;
-            dso.Add(dither);
-            dso.Add(Construct<AutofocusAfterFilterChange>(profile));
+            // FLIPTEST_VIEW_ONLY=1: only the plan, to look at its view (nothing above it to scroll past).
+            var viewOnly = Environment.GetEnvironmentVariable("FLIPTEST_VIEW_ONLY") == "1";
+            if (!viewOnly) {
+                dso.Add(Construct<MeridianFlipTrigger>(profile));
+                var dither = Construct<DitherAfterExposures>(profile);
+                dither.AfterExposures = 1;
+                dso.Add(dither);
+                dso.Add(Construct<AutofocusAfterFilterChange>(profile));
 
-            // Started with --runsequence: give the Alpaca discovery time, then connect.
-            var wait = Construct<WaitForTimeSpan>(profile);
-            wait.Time = 20;
-            dso.Add(wait);
-            dso.Add(Construct<ConnectAllEquipment>(profile));
-            dso.Add(Construct<SlewScopeToRaDec>(profile));
+                // Started with --runsequence: give the Alpaca discovery time, then connect.
+                var wait = Construct<WaitForTimeSpan>(profile);
+                wait.Time = 20;
+                dso.Add(wait);
+                dso.Add(Construct<ConnectAllEquipment>(profile));
+                dso.Add(Construct<SlewScopeToRaDec>(profile));
+            }
             // Without Night Info the plan sits high enough to be seen (N.I.N.A. only draws what is scrolled into view).
-            if (Environment.GetEnvironmentVariable("FLIPTEST_NIGHT_INFO") != "0") {
+            if (!viewOnly && Environment.GetEnvironmentVariable("FLIPTEST_NIGHT_INFO") != "0") {
                 dso.Add(new NstnNightInfo(profile));
             }
             var plan = (NstnFilterPlan)template.Clone();

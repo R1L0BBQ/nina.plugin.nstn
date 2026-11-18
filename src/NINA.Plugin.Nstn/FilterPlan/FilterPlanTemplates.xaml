@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:NINA.Plugin.Nstn.FilterPlan"
+    xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
     xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
     xmlns:nstn="clr-namespace:NINA.Plugin.Nstn"
     xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
@@ -128,9 +129,46 @@
                         Margin="0,3,0,0"
                         Text="{Binding Conditions[0].Summary}"
                         TextWrapping="Wrap" />
+                    <!--  Tonight per row, from its block's NSTN condition (updated by the condition itself).  -->
+                    <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Windows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="0,2,0,0" TextWrapping="Wrap">
+                                    <Run FontWeight="SemiBold" Text="{Binding Parent.Name, Mode=OneWay}" />
+                                    <Run Text="  " />
+                                    <Run Text="{Binding WindowSummary, Mode=OneWay}" />
+                                    <LineBreak />
+                                    <Run Text="{Binding NowSummary, Mode=OneWay}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <!--  The night plan of the hidden 'Wait for NSTN window' (template in InstructionTemplates.xaml).  -->
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Opacity="0.8"
+                        Text="{Binding Waiter.WaitSummary}"
+                        TextWrapping="Wrap" />
+                    <ContentControl Content="{Binding Waiter}" ContentTemplate="{DynamicResource NstnNightPlan}" />
                 </StackPanel>
             </view:SequenceBlockView.SequenceItemContent>
         </view:SequenceBlockView>
+    </DataTemplate>
+
+    <!--  Imaging tab (mini sequencer): the rows in one line and how long the plan runs.  -->
+    <DataTemplate x:Key="NINA.Plugin.Nstn.FilterPlan.NstnFilterPlan_Mini">
+        <mini:MiniSequenceItem>
+            <mini:MiniSequenceItem.SequenceItemContent>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock VerticalAlignment="Center" Text="{Binding RowsText}" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Opacity="0.8"
+                        Text="{Binding Conditions[0].Summary}" />
+                </StackPanel>
+            </mini:MiniSequenceItem.SequenceItemContent>
+        </mini:MiniSequenceItem>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type local:NstnNightLeftCondition}">

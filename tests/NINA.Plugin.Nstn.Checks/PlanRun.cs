@@ -20,6 +20,7 @@ using NINA.Equipment.Interfaces.Mediator;
 using NINA.Equipment.Model;
 using NINA.Image.Interfaces;
 using NINA.Plugin.Nstn.FilterPlan;
+using NINA.Plugin.Nstn.Instructions;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.Container;
 using NINA.Sequencer.SequenceItem;
@@ -69,6 +70,8 @@ namespace NINA.Plugin.Nstn.Checks {
         public Dictionary<string, int> CapturesPerFilter { get; } = new Dictionary<string, int>();
         public NstnFilterPlan Plan { get; private set; }
         public NstnNightLeftCondition End { get; private set; }
+        public NightPlan NightPlan { get; private set; }
+        public IReadOnlyList<string> WindowsShown { get; private set; } = Array.Empty<string>();
         public bool TimedOut { get; private set; }
         public TimeSpan Duration { get; private set; }
         public IReadOnlyCollection<string> Timeline => timeline;
@@ -254,6 +257,9 @@ namespace NINA.Plugin.Nstn.Checks {
                 Plan.Validate();
                 Thread.Sleep(500);
                 Plan.Validate();
+                // What the plan's view shows before the run: the hidden waiting instruction's night plan.
+                NightPlan = NightPlanBuilder.Build(Plan, new NstnOptions(profile), NstnClock.UtcNow);
+                WindowsShown = Plan.Windows.Select(w => $"{w.Parent?.Name}: {w.WindowSummary} | {w.NowSummary}").ToList();
 
                 Note($"RUN start, NSTN clock {NstnClock.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
                 using var cts = new CancellationTokenSource(limit);

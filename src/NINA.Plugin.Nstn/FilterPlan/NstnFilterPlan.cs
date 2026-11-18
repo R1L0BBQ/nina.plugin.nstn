@@ -317,6 +317,32 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         private static string CameraValue(int value) =>
             value == -1 ? Text.T("Plan_CameraDefault") : value.ToString(Text.Culture);
 
+        /// <summary>The rows in one line, for the mini sequencer of the imaging tab.</summary>
+        public string RowsText => string.Join(" · ", Rows.Select(r => r.Label));
+
+        private NstnWaitForWindow waiter;
+        private IReadOnlyList<NstnWindowCondition> windows = Array.Empty<NstnWindowCondition>();
+
+        /// <summary>The hidden waiting instruction; its night plan is shown in the plan's view.</summary>
+        public NstnWaitForWindow Waiter => waiter;
+
+        /// <summary>The NSTN condition of each row's block, for its window tonight and its state now.</summary>
+        public IReadOnlyList<NstnWindowCondition> Windows => windows;
+
+        /// <summary>After the children were built or loaded: what the view shows from them.</summary>
+        private void ChildrenChanged() {
+            // Read N.I.N.A.'s containers here, never under a lock of our own (deadlock rule).
+            var items = GetItemsSnapshot();
+            waiter = items.OfType<NstnWaitForWindow>().FirstOrDefault();
+            windows = items.OfType<ISequenceContainer>()
+                .Select(block => (block as IConditionable)?.GetConditionsSnapshot().OfType<NstnWindowCondition>().FirstOrDefault())
+                .Where(condition => condition != null)
+                .ToList();
+            RaisePropertyChanged(nameof(Waiter));
+            RaisePropertyChanged(nameof(Windows));
+            RaisePropertyChanged(nameof(RowsText));
+        }
+
         // -------------------------------------------------------------------
         // the instructions built from the rows
         // -------------------------------------------------------------------
@@ -351,6 +377,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             Add(new NstnNightLeftCondition { Name = Text.T("Name_NightLeft") });
 
             WatchExposures();
+            ChildrenChanged();
             RaisePropertyChanged(nameof(Outline));
             Validate();
         }
@@ -503,6 +530,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             if (expected == actual) {
                 Logger.Info($"NSTN filter plan '{Name}' loaded: {Rows.Count} rows, instructions match ({actual})");
                 WatchExposures();
+                ChildrenChanged();
             } else {
                 Logger.Warning($"NSTN filter plan '{Name}' loaded: instructions ({actual}) do not match the rows ({expected}), rebuilt from the rows");
                 Rebuild();

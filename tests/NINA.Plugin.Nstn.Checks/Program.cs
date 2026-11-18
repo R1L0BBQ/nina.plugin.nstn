@@ -26,6 +26,7 @@ using NINA.Sequencer.Trigger;
 using NINA.Sequencer.Utility.DateTimeProvider;
 using NINA.WPF.Base.Interfaces.Mediator;
 using NINA.WPF.Base.Interfaces.ViewModel;
+using Nstn.Core;
 
 namespace NINA.Plugin.Nstn.Checks {
 
@@ -431,6 +432,25 @@ namespace NINA.Plugin.Nstn.Checks {
             Check("run A: both open filters exposed, L/RGB not (its window closed at 05:26)",
                 a.CapturesPerFilter.ContainsKey("Askar D1") && a.CapturesPerFilter.ContainsKey("Ha") && !a.CapturesPerFilter.ContainsKey("L"),
                 string.Join(", ", a.CapturesPerFilter.Select(kv => $"{kv.Key} {kv.Value}")));
+
+            // The view: the night plan of the hidden waiting instruction and the window of each row.
+            Console.WriteLine($"  night plan: {a.NightPlan.Summary}");
+            foreach (var row in a.NightPlan.Rows) {
+                Console.WriteLine($"    {row.Label,-24} {row.Expected}");
+            }
+            foreach (var shown in a.WindowsShown) {
+                Console.WriteLine($"    window {shown}");
+            }
+            Check("view: the night plan has a row per filter row", a.NightPlan.HasPlan && a.NightPlan.Rows.Select(r => r.Label).SequenceEqual(a.Plan.Rows.Select(r => r.Label)),
+                string.Join(" / ", a.NightPlan.Rows.Select(r => r.Label)));
+            Check("view: the plan's end condition is understood (no 'not part of the estimate' note)", !a.NightPlan.Notes.Contains("not part of the estimate") && !a.NightPlan.Notes.Contains("runs once"), a.NightPlan.Notes);
+            Check("view: the night plan ends when no window opens again", a.NightPlan.Summary.EndsWith("no window opens again"), a.NightPlan.Summary);
+            Check("view: H-alpha gets time until 06:10, L/RGB none", a.NightPlan.Rows[1].Expected != a.NightPlan.Rows[2].Expected && a.NightPlan.Rows[2].Expected == Text.T("Plan_Nothing"),
+                string.Join(" / ", a.NightPlan.Rows.Select(r => r.Expected)));
+            Check("view: one window line per row, with tonight's window and the state now", a.WindowsShown.Count == 3 && a.WindowsShown.All(w => w.Contains("Tonight") && (w.Contains("Open") || w.Contains("Closed"))),
+                string.Join(" / ", a.WindowsShown));
+            Check("view: the waiting instruction is the plan's first child", ReferenceEquals(a.Plan.Waiter, a.Plan.Items[0]), a.Plan.Waiter?.GetType().Name);
+            Check("view: the rows in one line for the imaging tab", a.Plan.RowsText == "Askar D1: 2 × 1 s · Ha: 2 × 1 s · L: 2 × 1 s", a.Plan.RowsText);
 
             var b = PlanRun.Execute(Path.Combine(outDir, "run-b"), Night(5, 40, 0), TimeSpan.FromSeconds(20), roundsPerFilter: 3, imagesMissing: false);
             b.WriteTimeline(Path.Combine(outDir, "run-b.txt"));
