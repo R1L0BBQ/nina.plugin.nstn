@@ -236,6 +236,67 @@ namespace Nstn.Core.Tests {
             AssertOne(Check(other), FindingLevel.Warning, "Block 'Block' (Ha 7 nm) contains no exposure");
         }
 
+        // --- the NSTN filter plan: a container that builds the pattern itself
+
+        private static SeqCondition NightLeft => new(SeqConditionKind.Other, "Loop while an NSTN window opens tonight");
+
+        /// <summary>What the plan builds: wait first, one block per row with "@block" and an iteration limit, its own end.</summary>
+        private static SeqNode Plan(string name, int roundsPerFilter, params string[] rows) {
+            var plan = new SeqNode(name, SeqItemKind.Container) { RoundsPerFilter = roundsPerFilter };
+            plan.Conditions.Add(NightLeft);
+            plan.Children.Add(Wait);
+            foreach (var row in rows) {
+                plan.Children.Add(Container($"{row}: 5 × 300 s", FollowingBlockFilter, Iterations, Switch(row),
+                    Container("5 × 300 s", Iterations, Exposure(row))));
+            }
+            return plan;
+        }
+
+        [Fact]
+        public void AFilterPlanFollowsThePattern() {
+            var target = Container("M33", SeqTriggerKind.MeridianFlip, Slew, Plan("NSTN filter plan", 1, "OIII", "Ha"));
+            Assert.Empty(Check(target));
+        }
+
+        [Fact]
+        public void RoundRobinWithAutofocusAfterEveryFilterChangeIsPointedOut() {
+            var target = Container("M33", SeqTriggerKind.MeridianFlip, SeqTriggerKind.AutofocusAfterFilterChange, Slew,
+                Plan("NSTN filter plan", 1, "OIII", "Ha", "L"));
+            AssertOne(Check(target), FindingLevel.Hint, "'NSTN filter plan' changes the filter in every round");
+            AssertOne(Check(target), FindingLevel.Hint, "with 3 filters");
+
+            // Not when the plan stays on a filter for several rounds, has one row, or AF runs otherwise.
+            Assert.Empty(Check(Container("M33", SeqTriggerKind.MeridianFlip, SeqTriggerKind.AutofocusAfterFilterChange, Plan("Plan", 3, "OIII", "Ha"))));
+            Assert.Empty(Check(Container("M33", SeqTriggerKind.MeridianFlip, SeqTriggerKind.AutofocusAfterFilterChange, Plan("Plan", 1, "Ha"))));
+            Assert.Empty(Check(Container("M33", SeqTriggerKind.MeridianFlip, SeqTriggerKind.Autofocus, Plan("Plan", 1, "OIII", "Ha"))));
+        }
+
+        [Fact]
+        public void AutofocusAfterFilterChangeCountsOnEveryContainerUpToTheTarget() {
+            var inLoop = Container("M33", SeqTriggerKind.MeridianFlip,
+                Container("Set", SeqTriggerKind.AutofocusAfterFilterChange, Plan("Plan", 1, "OIII", "Ha")));
+            AssertOne(Check(inLoop), FindingLevel.Hint, "changes the filter in every round");
+            // A trigger on a container beside the plan does not fire for its exposures.
+            var aside = Container("M33", SeqTriggerKind.MeridianFlip,
+                Container("Other", SeqTriggerKind.AutofocusAfterFilterChange), Plan("Plan", 1, "OIII", "Ha"));
+            Assert.Empty(Check(aside));
+        }
+
+        [Fact]
+        public void NstnWorkAfterAFilterPlanGetsNoTimeTonight() {
+            var second = Container("M33", SeqTriggerKind.MeridianFlip, Plan("Plan 1", 1, "OIII", "Ha"), Plan("Plan 2", 1, "L"));
+            AssertOne(Check(second), FindingLevel.Warning, "'Plan 2' comes after 'Plan 1' in 'M33'");
+
+            var block = Container("M33", SeqTriggerKind.MeridianFlip, Plan("Plan", 1, "OIII"),
+                Container("Loop", UntilTime, Wait, Block("Block L", "RGB", Iterations)));
+            AssertOne(Check(block), FindingLevel.Warning, "'Loop' comes after 'Plan' in 'M33'");
+
+            // Anything without NSTN after the plan (flats, park) is fine, and so is NSTN work before it.
+            Assert.Empty(Check(Container("M33", SeqTriggerKind.MeridianFlip, Plan("Plan", 1, "OIII"), Exposure("Flat"), Slew)));
+            Assert.DoesNotContain(Check(Container("M33", SeqTriggerKind.MeridianFlip, Plan("Plan 1", 1, "OIII"), Plan("Plan 2", 1, "Ha"))),
+                f => f.Message.Contains("'Plan 1' comes after"));
+        }
+
         [Fact]
         public void WarningsComeFirst() {
             var target = Container("M33", Container("Loop", UntilTime, Block("Block OIII", "OIII"), Block("Block Ha", "Ha")));

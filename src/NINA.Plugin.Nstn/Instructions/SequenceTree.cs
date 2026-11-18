@@ -63,7 +63,9 @@ namespace NINA.Plugin.Nstn.Instructions {
         }
 
         public static SeqNode Convert(ISequenceContainer container, int depth = 0) {
-            var node = new SeqNode(container.Name, SeqItemKind.Container);
+            var node = new SeqNode(container.Name, SeqItemKind.Container) {
+                RoundsPerFilter = (container as FilterPlan.NstnFilterPlan)?.RoundsPerFilter,
+            };
             if (container is IConditionable conditionable) {
                 foreach (var condition in conditionable.GetConditionsSnapshot()) {
                     if (condition.Status != SequenceEntityStatus.DISABLED) {
@@ -116,7 +118,7 @@ namespace NINA.Plugin.Nstn.Instructions {
             }
             var type = trigger.GetType();
             if (type.Namespace?.EndsWith(".Autofocus", StringComparison.Ordinal) == true) {
-                return SeqTriggerKind.Autofocus;
+                return type.Name == "AutofocusAfterFilterChange" ? SeqTriggerKind.AutofocusAfterFilterChange : SeqTriggerKind.Autofocus;
             }
             return type.Name.Contains("Dither", StringComparison.Ordinal) ? SeqTriggerKind.Dither : SeqTriggerKind.Other;
         }

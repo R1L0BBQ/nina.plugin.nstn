@@ -543,6 +543,10 @@
 
                     <Expander Margin="0,8,0,0" Header="{nstn:T Guide_Title}">
                         <StackPanel Margin="0,4,0,0">
+                            <TextBlock
+                                Margin="0,0,0,6"
+                                Text="{nstn:T Guide_Easy}"
+                                TextWrapping="Wrap" />
                             <TextBlock FontFamily="Consolas" Text="{nstn:T Guide_Tree}" />
                             <TextBlock
                                 Margin="0,6,0,0"

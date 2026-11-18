@@ -14,7 +14,7 @@ namespace Nstn.Core {
 
     public enum SeqConditionKind { NstnWindow, LoopForIterations, LoopUntilTime, Other }
 
-    public enum SeqTriggerKind { MeridianFlip, Autofocus, Dither, Other }
+    public enum SeqTriggerKind { MeridianFlip, Autofocus, AutofocusAfterFilterChange, Dither, Other }
 
     public sealed record SeqCondition(SeqConditionKind Kind, string Name) {
         /// <summary>The band an NSTN condition judges; null while it follows an unresolved block filter.</summary>
@@ -42,6 +42,11 @@ namespace Nstn.Core {
 
         /// <summary>The filter a filter switch or an exposure selects, by its N.I.N.A. name.</summary>
         public string? Filter { get; init; }
+
+        /// <summary>Set for an NSTN filter plan: how often a row runs before the next filter (1 = round robin).</summary>
+        public int? RoundsPerFilter { get; init; }
+
+        public bool IsFilterPlan => RoundsPerFilter != null;
 
         public List<SeqCondition> Conditions { get; } = new();
 
@@ -111,6 +116,9 @@ namespace Nstn.Core {
             }
 
             CheckTriggers(target, parents, context, Hint, blocks);
+            foreach (var plan in new[] { target }.Concat(target.Descendants()).Where(n => n.IsFilterPlan)) {
+                CheckFilterPlan(plan, target, parents, Warn, Hint);
+            }
             return Ordered(findings);
         }
 
@@ -191,6 +199,32 @@ namespace Nstn.Core {
                     || (item.Kind == SeqItemKind.Container && !item.IsNstnBlock && item.Descendants().Any(n => n.Kind == SeqItemKind.Exposure));
                 if (stray) {
                     hint(Text.T("Check_Stray", Text.Quote(item.Name), Text.Quote(loop.Name)));
+                }
+            }
+        }
+
+        /// <summary>
+        /// A filter plan builds the pattern itself (wait first, one block per row with an
+        /// iteration limit, its own end), so the loop rules hold. What it cannot see:
+        /// the triggers around it and what comes after it.
+        /// </summary>
+        private static void CheckFilterPlan(SeqNode plan, SeqNode target, Dictionary<SeqNode, SeqNode> parents, Action<string> warn, Action<string> hint) {
+            // Round robin and "AF after filter change" where it fires for the plan's exposures.
+            var rows = plan.Children.Count(c => c.IsNstnBlock);
+            var afterFilterChange = false;
+            for (var node = plan; node != null; node = node == target ? null : parents.TryGetValue(node, out var p) ? p : null) {
+                afterFilterChange |= node.Triggers.Contains(SeqTriggerKind.AutofocusAfterFilterChange);
+            }
+            if (rows > 1 && plan.RoundsPerFilter == 1 && afterFilterChange) {
+                hint(Text.T("Check_PlanAfEveryChange", Text.Quote(plan.Name), rows));
+            }
+
+            // A plan runs until no window opens again tonight: NSTN work after it gets no time.
+            if (parents.TryGetValue(plan, out var parent)) {
+                foreach (var later in parent.Children.SkipWhile(c => c != plan).Skip(1)) {
+                    if (later.IsFilterPlan || later.IsNstnBlock || later.Descendants().Any(n => n.IsNstnBlock)) {
+                        warn(Text.T("Check_AfterPlan", Text.Quote(plan.Name), Text.Quote(later.Name), Text.Quote(parent.Name)));
+                    }
                 }
             }
         }

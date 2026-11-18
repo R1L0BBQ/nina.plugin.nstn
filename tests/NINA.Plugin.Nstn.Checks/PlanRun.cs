@@ -34,6 +34,7 @@ using NINA.WPF.Base.Interfaces.Mediator;
 using NINA.WPF.Base.Interfaces.ViewModel;
 using NINA.WPF.Base.Model;
 using NINA.WPF.Base.Utility.AutoFocus;
+using Nstn.Core;
 
 namespace NINA.Plugin.Nstn.Checks {
 
@@ -72,6 +73,7 @@ namespace NINA.Plugin.Nstn.Checks {
         public NstnNightLeftCondition End { get; private set; }
         public NightPlan NightPlan { get; private set; }
         public IReadOnlyList<string> WindowsShown { get; private set; } = Array.Empty<string>();
+        public IReadOnlyList<string> Findings { get; private set; } = Array.Empty<string>();
         public bool TimedOut { get; private set; }
         public TimeSpan Duration { get; private set; }
         public IReadOnlyCollection<string> Timeline => timeline;
@@ -259,6 +261,10 @@ namespace NINA.Plugin.Nstn.Checks {
                 Plan.Validate();
                 // What the plan's view shows before the run: the hidden waiting instruction's night plan.
                 NightPlan = NightPlanBuilder.Build(Plan, new NstnOptions(profile), NstnClock.UtcNow);
+                // Night Info's sequence check on N.I.N.A.'s real tree (real trigger types, the real plan).
+                Findings = SequenceCheck.Check(SequenceTree.Convert(dso),
+                    new SequenceCheckContext(false, null, _ => null, ms => NightModel.ToUtcDateTime(ms).ToLocalTime().ToString("HH:mm")))
+                    .Select(f => $"{f.Level}: {f.Message}").ToList();
                 WindowsShown = Plan.Windows.Select(w => $"{w.Parent?.Name}: {w.WindowSummary} | {w.NowSummary}").ToList();
 
                 Note($"RUN start, NSTN clock {NstnClock.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm:ss}");

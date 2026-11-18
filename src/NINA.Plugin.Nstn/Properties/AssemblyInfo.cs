@@ -41,6 +41,8 @@ The plugin speaks N.I.N.A.'s language (Options > General > Language): English an
 
 ### How to build an NSTN sequence
 
+" + NINA.Plugin.Nstn.SequenceGuide.Easy + @"
+
 ```
 " + NINA.Plugin.Nstn.SequenceGuide.Tree + @"
 ```

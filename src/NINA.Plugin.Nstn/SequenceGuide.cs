@@ -3,11 +3,13 @@ namespace NINA.Plugin.Nstn {
     /// <summary>
     /// The guide "How to build an NSTN sequence" in English, for the plugin
     /// description in N.I.N.A.'s plugin list - an assembly attribute needs constants.
-    /// In the sequencer the guide comes from the string tables (Guide_Tree,
-    /// Guide_Rules) in the user's language. Generated from Strings/en.json;
+    /// In the sequencer the guide comes from the string tables (Guide_Easy,
+    /// Guide_Tree, Guide_Rules) in the user's language. Generated from Strings/en.json;
     /// TextTests fails when the two drift apart.
     /// </summary>
     public static class SequenceGuide {
+
+        public const string Easy = @"The easy way: 'NSTN filter plan' builds this pattern from a table - one row per filter (name as in the profile, exposures per round, exposure time) - and ends when no window opens again tonight. The tree and the rules below are for building it by hand.";
 
         public const string Tree = @"Deep Sky Object Instruction Set   triggers: Meridian Flip, AF After Filter Change, Dither after Exposures
 ├─ NSTN Night Info   shows the night, takes no time

@@ -117,6 +117,7 @@ namespace Nstn.Core.Tests {
         /// sequencer says to an English user.
         /// </summary>
         [Theory]
+        [InlineData("Easy", "Guide_Easy")]
         [InlineData("Tree", "Guide_Tree")]
         [InlineData("Rules", "Guide_Rules")]
         public void ThePluginDescriptionCarriesTheEnglishGuide(string constant, string key) {

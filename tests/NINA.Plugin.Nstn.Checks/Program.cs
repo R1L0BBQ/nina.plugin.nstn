@@ -455,6 +455,15 @@ namespace NINA.Plugin.Nstn.Checks {
             var b = PlanRun.Execute(Path.Combine(outDir, "run-b"), Night(5, 40, 0), TimeSpan.FromSeconds(20), roundsPerFilter: 3, imagesMissing: false);
             b.WriteTimeline(Path.Combine(outDir, "run-b.txt"));
             Console.WriteLine($"  run B (3 rounds per filter): {b.Captures} exposures, {b.FilterChanges} filter switches, {b.Autofocus} AF");
+            // Night Info's sequence check on the real tree: target with Meridian Flip, Dither, AF after filter change.
+            foreach (var finding in a.Findings.Concat(b.Findings).Distinct()) {
+                Console.WriteLine($"    check: {finding}");
+            }
+            Check("sequence check: round robin with AF after filter change is pointed out (real trigger types)",
+                a.Findings.Count(f => f.StartsWith("Hint:") && f.Contains("changes the filter in every round")) == 1, string.Join(" / ", a.Findings));
+            Check("sequence check: ... not with 3 rounds per filter", !b.Findings.Any(f => f.Contains("changes the filter in every round")), string.Join(" / ", b.Findings));
+            Check("sequence check: the plan follows the NSTN pattern (no warnings)", !a.Findings.Concat(b.Findings).Any(f => f.StartsWith("Warning:")),
+                string.Join(" / ", a.Findings.Concat(b.Findings)));
             Check("run B: 3 rounds per filter at least halve the AF runs per exposure",
                 b.Captures > 0 && a.Captures > 0 && 2.0 * b.Autofocus / b.Captures <= (double)a.Autofocus / a.Captures,
                 $"A {a.Autofocus}/{a.Captures}, B {b.Autofocus}/{b.Captures}");
