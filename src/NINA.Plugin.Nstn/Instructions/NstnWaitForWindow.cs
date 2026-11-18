@@ -99,7 +99,7 @@ namespace NINA.Plugin.Nstn.Instructions {
             lock (planGate) {
                 NightPlan next;
                 try {
-                    next = NightPlanBuilder.Build(Parent, new NstnOptions(profileService), DateTime.UtcNow);
+                    next = NightPlanBuilder.Build(Parent, new NstnOptions(profileService), NstnClock.UtcNow);
                 } catch (Exception ex) {
                     Logger.Error(ex);
                     next = NightPlan.Empty with { HasPlan = true, Summary = Text.T("Plan_Failed", ex.Message) };
@@ -264,7 +264,7 @@ namespace NINA.Plugin.Nstn.Instructions {
             }
         }
 
-        private static double Now() => NightModel.ToEpochMs(DateTime.UtcNow);
+        private static double Now() => NightModel.ToEpochMs(NstnClock.UtcNow);
 
         private static string Clock(double epochMs) => Text.Clock(NightModel.ToUtcDateTime(epochMs).ToLocalTime());
     }

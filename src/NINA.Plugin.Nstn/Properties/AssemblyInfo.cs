@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // The plugin's identity in NINA. The GUID keys the per-profile plugin settings:
@@ -14,6 +15,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
+
+// The check program sets NstnClock and reads the plan's failure count.
+[assembly: InternalsVisibleTo("NINA.Plugin.Nstn.Checks")]
 
 [assembly: AssemblyVersion("0.6.0.0")]
 [assembly: AssemblyFileVersion("0.6.0.0")]

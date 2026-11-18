@@ -426,7 +426,7 @@ namespace NINA.Plugin.Nstn.Conditions {
 
         public override bool Check(ISequenceItem previousItem, ISequenceItem nextItem) {
             var forecast = Refresh(force: false);
-            var open = forecast != null && forecast.IsOpenAt(NightModel.ToEpochMs(DateTime.UtcNow));
+            var open = forecast != null && forecast.IsOpenAt(NightModel.ToEpochMs(NstnClock.UtcNow));
             if (IsActive() && lastReportedOpen != open) {
                 lastReportedOpen = open;
                 var reason = forecast == null ? string.Join(" ", Issues) : NowSummary;
@@ -478,7 +478,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                 ? BlockFilterNames(Parent, 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
                 : null;
             lock (refreshGate) {
-                if (!force && DateTime.UtcNow - lastRefreshUtc < ReuseFor) {
+                if (!force && NstnClock.UtcNow - lastRefreshUtc < ReuseFor) {
                     ShowNow(lastForecast);
                     return lastForecast;
                 }
@@ -500,7 +500,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                         var astrometry = profileService.ActiveProfile.AstrometrySettings;
                         var j2000 = context.Coordinates.Transform(Epoch.J2000);
                         forecast = WindowForecaster.Shared.Forecast(
-                            DateTime.UtcNow,
+                            NstnClock.UtcNow,
                             TimeZoneInfo.Local,
                             astrometry.Latitude,
                             astrometry.Longitude,
@@ -524,7 +524,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                 Issues = found;
                 ShowForecast(forecast);
                 lastForecast = forecast;
-                lastRefreshUtc = DateTime.UtcNow;
+                lastRefreshUtc = NstnClock.UtcNow;
                 return forecast;
             }
         }
@@ -554,7 +554,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                 return;
             }
 
-            var now = NightModel.ToEpochMs(DateTime.UtcNow);
+            var now = NightModel.ToEpochMs(NstnClock.UtcNow);
             var open = forecast.IsOpenAt(now);
             var change = forecast.NextChangeAfter(now);
             var state = open

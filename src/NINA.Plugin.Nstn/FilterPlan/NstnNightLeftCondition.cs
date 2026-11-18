@@ -111,7 +111,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         internal static (int Watched, bool Left, double? LastClose) Evaluate(ISequenceContainer container) {
             // CurrentForecast reads N.I.N.A.'s containers before its own lock (deadlock rule).
             var forecasts = NstnWaitForWindow.ConditionsBelow(container).Select(c => c.CurrentForecast()).ToList();
-            var now = NightModel.ToEpochMs(DateTime.UtcNow);
+            var now = NightModel.ToEpochMs(NstnClock.UtcNow);
             return (forecasts.Count, PlanEnd.AnyWindowLeft(forecasts, now), PlanEnd.LastClose(forecasts));
         }
 

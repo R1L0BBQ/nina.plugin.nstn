@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Checks of the plugin against N.I.N.A.'s own sequencer classes (factory, JSON
+       converter, drop command, Sequencer.Validate, SequentialStrategy with the real
+       triggers). Built in the SDK container, run on Windows by tests/Run-NinaChecks.ps1
+       against the DLLs of the installed N.I.N.A. 3.2.0.9001 (the NuGet package carries
+       different builds). Self-contained, because N.I.N.A. ships its runtime privately. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NINA.Plugin" Version="3.2.0.9001" />
+    <ProjectReference Include="..\..\src\NINA.Plugin.Nstn\NINA.Plugin.Nstn.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="golden\filterplan-3.2.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('golden\filterplan-3.2.json')" />
+  </ItemGroup>
+
+</Project>

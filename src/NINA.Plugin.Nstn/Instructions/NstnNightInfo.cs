@@ -220,7 +220,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                     var settings = options.ToWindowSettings();
                     var astrometry = profileService.ActiveProfile.AstrometrySettings;
                     var j2000 = ItemUtility.RetrieveContextCoordinates(Parent).Coordinates.Transform(Epoch.J2000);
-                    var bundle = WindowForecaster.Shared.Night(DateTime.UtcNow, TimeZoneInfo.Local,
+                    var bundle = WindowForecaster.Shared.Night(NstnClock.UtcNow, TimeZoneInfo.Local,
                         astrometry.Latitude, astrometry.Longitude, j2000.RADegrees, j2000.Dec, options.SkyQuality);
 
                     // The bands of the NSTN conditions below the target, else the usual four.
@@ -237,7 +237,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                     }
 
                     var info = NightInfoBuilder.Build(bundle, watched.Select(w => w.Band), settings);
-                    var now = NightModel.ToEpochMs(DateTime.UtcNow);
+                    var now = NightModel.ToEpochMs(NstnClock.UtcNow);
                     Chart = NightChartBuilder.Build(info, now, watched.Select(w => w.Label).ToList());
 
                     if (tree != null) {

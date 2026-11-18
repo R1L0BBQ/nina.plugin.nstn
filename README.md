@@ -30,6 +30,28 @@ Voraussetzung: Docker mit `mcr.microsoft.com/dotnet/sdk:10.0`. Kein lokales .NET
 Ergebnis: `dist\NSTN\` mit genau drei DLLs (`NINA.Plugin.Nstn.dll`, `Nstn.Core.dll`,
 `astronomy.dll`) und das ZIP darum.
 
+### Prüfungen gegen N.I.N.A.
+
+`build.ps1` testet den Rechenkern im Linux-Container. Was N.I.N.A.s eigene Klassen braucht,
+prüft `tests\Run-NinaChecks.ps1` unter Windows gegen die DLLs des installierten
+N.I.N.A. 3.2.0.9001. Dazu gehören Laden und Speichern, Drag & Drop, Vorlagen,
+`Sequencer.Validate` und Läufe mit `SequentialStrategy`, den echten Triggern und Stub-Geräten:
+
+```powershell
+.\tests\Run-NinaChecks.ps1            # alle Prüfungen, etwa 2 Minuten
+.\tests\Run-NinaChecks.ps1 -NoRuns    # ohne die Läufe, etwa 20 Sekunden
+```
+
+- **Was die Läufe prüfen:** Trigger am Ziel greifen zwischen den Belichtungen. „Runden je Filter“
+  spart AF-Läufe. Der Filterplan endet nach gescheiterten Belichtungen und am Ende der Nacht von selbst.
+- **Feste Nacht:** Die NSTN-Uhr läuft dabei in der Nacht 18./19.11.2026. Das geht über `NstnClock`,
+  das nur dieses Prüfprogramm verstellen kann.
+- **Kein Zugriff aufs echte Profil:** Logger, Datenbank und Ausgaben liegen in einem Wegwerfordner.
+  Exit-Code 0 heißt alles grün.
+- **Golddatei:** `tests\NINA.Plugin.Nstn.Checks\golden\filterplan-3.2.json` muss unverändert laden und
+  gleich wieder geschrieben werden. Nach einer gewollten Formatänderung neu schreiben mit
+  `-WriteGolden` und den Diff ansehen.
+
 ## Installieren (manuell)
 
 1. N.I.N.A. beenden.

@@ -69,8 +69,9 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         // nothing is rebuilt until both are complete.
         private bool loading;
 
-        // Exposures of this plan whose status is watched, and how many failed in a row.
-        private readonly List<TakeExposure> watchedExposures = new List<TakeExposure>();
+        // Exposures of this plan whose status is watched (with the status seen last), and
+        // how many failed in a row.
+        private readonly Dictionary<TakeExposure, SequenceEntityStatus> watchedExposures = new Dictionary<TakeExposure, SequenceEntityStatus>();
         private int failedInARow;
 
         [ImportingConstructor]
@@ -440,7 +441,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         internal void ResetFailures() => failedInARow = 0;
 
         private void WatchExposures() {
-            foreach (var exposure in watchedExposures) {
+            foreach (var exposure in watchedExposures.Keys) {
                 exposure.PropertyChanged -= OnExposureChanged;
             }
             watchedExposures.Clear();
@@ -448,17 +449,24 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                 foreach (var series in block.GetItemsSnapshot().OfType<ISequenceContainer>()) {
                     foreach (var exposure in series.GetItemsSnapshot().OfType<TakeExposure>()) {
                         exposure.PropertyChanged += OnExposureChanged;
-                        watchedExposures.Add(exposure);
+                        watchedExposures[exposure] = exposure.Status;
                     }
                 }
             }
         }
 
         private void OnExposureChanged(object sender, PropertyChangedEventArgs e) {
-            if (e.PropertyName != nameof(Status)) {
+            if (e.PropertyName != nameof(Status) || sender is not TakeExposure exposure || !watchedExposures.TryGetValue(exposure, out var before)) {
                 return;
             }
-            switch (((TakeExposure)sender).Status) {
+            var status = exposure.Status;
+            watchedExposures[exposure] = status;
+            // N.I.N.A. 3.2 sets FAILED twice when an exposure fails its validation
+            // (RunErrorBehavior, then the catch of the validation exception): one failure.
+            if (status == before) {
+                return;
+            }
+            switch (status) {
                 case SequenceEntityStatus.FINISHED:
                     failedInARow = 0;
                     break;
