@@ -1,10 +1,15 @@
 # NSTN für N.I.N.A.
 
-Plugin für den Advanced Sequencer von N.I.N.A. 3.2: Die Bedingung
-**„Loop while NSTN window open"** lässt einen Befehlsblock nur laufen, solange das
-NSTN-Himmelsmodell das gewählte Band (L/RGB, Hα, O III, S II, Hβ) für das Ziel als
-lohnend bewertet. Im Sequencer zeigt die Bedingung das Fenster der Nacht und den
-aktuellen Zustand an.
+Plugin für den Advanced Sequencer von N.I.N.A. 3.2.
+
+- **„NSTN filter plan“ (ab 0.7.0):** Ein einzelner Befehl mit einer Tabelle, eine Zeile je Filter.
+  Er belichtet jeden Filter, solange das NSTN-Himmelsmodell sein Band für das Ziel als lohnend
+  bewertet, Runde für Runde bis zum Ende der Nacht.
+- **„Loop while NSTN window open“:** Die Bedingung dahinter, für den Aufbau von Hand. Sie lässt
+  einen Befehlsblock nur laufen, solange sein Band (L/RGB, Hα, O III, S II, Hβ) lohnt.
+- Beide zeigen im Sequencer das Fenster der Nacht und den aktuellen Zustand.
+
+**Anleitung für Anwender:** [docs/Anleitung.md](docs/Anleitung.md).
 
 Das Nachtmodell ist ein wörtlicher Port von FITSORAs `fitsora/domain/night.py`
 (selbst ein Port des TypeScript-Belichtungsplaners) und wird gegen dieselben
@@ -18,6 +23,9 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 | `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator-, Katalog-, Night-Info-, Sequenzprüfungs- und Übersetzungstests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
+| `tests/NINA.Plugin.Nstn.Checks`, `tests/Run-NinaChecks.ps1` | Prüfprogramm gegen die DLLs des installierten N.I.N.A. (Windows) |
+| `tests/NinaTestInstance` | Abnahme in N.I.N.A.: abgeschottete Testinstanz (Startup Hook), Alpaca-Simulatoren im Container, Testordner mit Profilkopie |
+| `docs/Anleitung.md` | Anleitung für Anwender (Deutsch) |
 
 ## Bauen
 
@@ -52,6 +60,34 @@ N.I.N.A. 3.2.0.9001. Dazu gehören Laden und Speichern, Drag & Drop, Vorlagen,
   gleich wieder geschrieben werden. Nach einer gewollten Formatänderung neu schreiben mit
   `-WriteGolden` und den Diff ansehen.
 
+### Abnahme in N.I.N.A. mit Simulatoren
+
+Für einen Lauf in der echten Oberfläche, ohne das installierte N.I.N.A. oder sein Profil anzufassen:
+
+```powershell
+.\build.ps1
+.\tests\NinaTestInstance\Start-Simulators.ps1 -SimulatorDir <ausgepackt>\ascom.alpaca.simulators.linux-x64
+.\tests\NinaTestInstance\New-NinaTestRoot.ps1 -TestRoot C:\Temp\nina-test\3.2 -SourceProfile <Profil>.profile
+.\tests\NINA.Plugin.Nstn.Checks\bin\checks\NINA.Plugin.Nstn.Checks.exe C:\Temp\nina-test\out write-flip-sequence C:\Temp\nina-test\flip.json
+.\tests\NinaTestInstance\Start-NinaTest.ps1 -NinaExe "<N.I.N.A.-Ordner>\NINA.exe" -TestRoot C:\Temp\nina-test\3.2 `
+    -SequenceFile C:\Temp\nina-test\flip.json -Run -NstnClockUtc 2026-11-19T04:40:00Z
+.\tests\NinaTestInstance\Start-Simulators.ps1 -Stop
+```
+
+- **Simulatoren:** ASCOM Alpaca Omni-Simulator (Linux-Build von GitHub) im Docker-Container.
+  Gebraucht werden Montierung, Filterrad und Fokussierer; Guider ist „Mount Dither“, die Kamera die
+  Simulatorkamera des Profils. N.I.N.A. findet sie über die eigene Alpaca-Suche, eine ASCOM-Plattform
+  ist nicht nötig.
+- **Abschottung:** `NinaTestHook` lenkt Profile, Plugins, Logs, Datenbank und Caches in den
+  Testordner und hält die Anwendungseinstellungen im Speicher. Die Testinstanz läuft auch neben
+  einem geöffneten N.I.N.A.
+- **Testsequenz:** Sie stellt das Ziel 10 Minuten vor den Meridian. So muss im Lauf ein
+  Meridian-Flip kommen.
+- **NSTN-Uhr:** `-NstnClockUtc` lässt die NSTN-Uhr ab einer Nachtzeit laufen, damit tagsüber Fenster
+  offen sind (per Reflection auf `NstnClock`; das Plugin selbst hat dafür keinen Schalter).
+- **Auch für N.I.N.A. 3.3:** Für die 3.3-Nightly das Setup nicht installieren, es ersetzt 3.2.
+  Stattdessen auspacken und `-NinaExe` darauf zeigen lassen.
+
 ## Installieren (manuell)
 
 1. N.I.N.A. beenden.
@@ -61,6 +97,9 @@ N.I.N.A. 3.2.0.9001. Dazu gehören Laden und Speichern, Drag & Drop, Vorlagen,
    eintragen. Breite/Länge kommen aus dem Profil (*Options → General → Astrometry*).
 
 ## Benutzen
+
+**Der einfache Weg ist der Filterplan** (ab 0.7.0, siehe unten und [docs/Anleitung.md](docs/Anleitung.md)).
+Dieser Abschnitt beschreibt das Muster von Hand.
 
 Die Bedingung gehört an einen Befehlsblock **innerhalb eines Ziel-Containers** (sie
 braucht dessen Koordinaten). Geprüft wird vor jedem Befehl, auch in verschachtelten
@@ -92,6 +131,48 @@ eines öffnet. Öffnet in dieser Nacht keines mehr, wartet er weiter, bis die
 Schleifenbedingung (z. B. Morgendämmerung) die Schleife beendet.
 
 ![Sequencer mit NSTN-Bedingung und Warte-Befehl](docs/sequencer-0.1.1.jpg)
+
+## NSTN-Filterplan (ab 0.7.0)
+
+Ein Befehl wie Smart Exposure: Die Tabelle ist die einzige Quelle, daraus baut der Plan das
+NSTN-Muster:
+
+```
+NSTN filter plan          [Bedingung: Loop while an NSTN window opens tonight]
+  Wait for NSTN window
+  je Zeile: Block [Loop while NSTN window open „@block“, Loop For Iterations = Runden je Filter]
+              Switch Filter (Filter der Zeile)
+              Reihe [Loop For Iterations = Anzahl]  Take Exposure (Zeit der Zeile; Gain/Offset/Binning des Plans)
+```
+
+- **Werte:**
+  - je Zeile Filter (Name wie im Profil), Anzahl je Runde und Belichtungszeit;
+  - für den Plan Gain, Offset, Binning und „Runden je Filter“ (1 = Rundlauf, mehr spart
+    Filterwechsel und AF-Läufe);
+  - „Abbruch nach Fehlschlägen in Folge“ (Standard 3, 0 = nie).
+  - Das Band jeder Zeile kommt aus „Filter dieses Profils“.
+- **Ende ohne Uhrzeit:** Der Plan läuft, bis heute Nacht kein Fenster mehr öffnet, oder bis die
+  eingestellte Zahl Aufnahmen hintereinander gescheitert ist. Dann gibt es eine Meldung und eine
+  Warnung im Protokoll.
+  - Ohne diese Grenze würde ein Plan ohne Kamera oder Bildordner die Nacht mit Filterwechseln
+    und AF-Läufen verbringen.
+  - N.I.N.A. 3.2 setzt bei einer gescheiterten Prüfung FAILED zweimal. Gezählt wird nur der
+    Übergang nach FAILED.
+- **Anzeige:**
+  - die Tabelle, die Planwerte und die Gliederung;
+  - je Zeile das Fenster heute Nacht und der Zustand jetzt;
+  - der Nachtplan des versteckten Warte-Befehls;
+  - im Aufnahme-Reiter eine Kurzansicht.
+- **Laden und Speichern:**
+  - Laden geht über die Fabrikvorlage, `Clone()` und Populate.
+  - Passende Kinder aus der Datei bleiben erhalten, widersprechende werden aus der Tabelle neu gebaut.
+  - `Validate()` sammelt die Probleme der Kinder selbst, weil N.I.N.A. Immutable-Container überspringt.
+  - Während des Laufs ist der Plan gesperrt.
+- **Sequenzprüfung der Night Info:**
+  - Hinweis bei Rundlauf mit „AF nach Filterwechsel“.
+  - Warnung, wenn hinter einem Plan im selben Container noch NSTN-Arbeit steht; die bekommt in
+    dieser Nacht keine Zeit mehr.
+- **Grenze:** je Zeile eine Linie. Duo-Filter an der Farbkamera mit zwei Linien geht nur von Hand.
 
 ## Filter-Voreinstellungen (ab 0.3.0)
 
@@ -296,7 +377,19 @@ Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); je
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.6.0)
+## Getestet (18.11.2026, 0.7.0, NINA-Testinstanzen mit Alpaca-Simulatoren)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 213/213 Kerntests |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 115/115, darunter Golddatei 3.2 und vier Läufe mit SequentialStrategy |
+| Abnahme 3.2.0.9001 (Testinstanz, NSTN-Uhr 05:40, Plan Rundlauf mit Night Info, Ziel 6 min vor dem Meridian) | Meridian-Flip echt ausgeführt (pierWest → pierEast), danach weiter belichtet; 30 Aufnahmen, 13 × AF nach Filterwechsel, 29 × Dither erfolgreich; Night Info im Lauf ausgeführt (Protokollzeile) |
+| Abnahme 3.3.0.1069 (ausgepackt, dasselbe net8-Build 0.7.0, gleicher Lauf) | Meridian-Flip echt ausgeführt; 30 Aufnahmen, 13 × AF, 29 × Dither erfolgreich; Night Info ausgeführt |
+
+## Bekannte Grenzen (Stand 0.7.0)
+
+- Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
+  ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.
 
 - „From this block's filter" folgt einem Filterwechsel mit bis zu 30 s Verzögerung
   (Aktualisierungstakt), entschieden wird beim Prüfen vor jeder Aufnahme aber aktuell.
@@ -310,5 +403,5 @@ Block – ein Grund mehr für den Warte-Befehl.
   ein Hinweis. Nur die laufende Nacht.
 - Übersetzt nur Englisch und Deutsch; die Plugin-Beschreibung im Plugin-Manager bleibt englisch.
 - Uhrzeiten in der lokalen Zeit des Aufnahme-PCs.
-- Getestet nur mit der Simulator-Kamera, ohne Montierung, Filterrad, Guiding und
-  Meridian-Flip.
+- Mit Simulatoren getestet (Montierung, Filterrad, Fokussierer, Mount Dither, Simulatorkamera),
+  noch nicht in einer echten Nacht mit echten Geräten.

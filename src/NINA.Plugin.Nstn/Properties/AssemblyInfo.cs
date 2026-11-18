@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 [assembly: Guid("da1b84a3-4397-4f30-8eb9-5ed431d4ff06")]
 
 [assembly: AssemblyTitle("NSTN – Narrowband Saves The Night")]
-[assembly: AssemblyDescription("Sequencer conditions that run an instruction set only while the NSTN sky model rates a filter band as worth exposing, plus a night overview with a check of the sequence structure.")]
+[assembly: AssemblyDescription("A filter plan that exposes each filter while the NSTN sky model rates its band as worth exposing, round after round until the night is over; the sequencer condition behind it, and a night overview with a check of the sequence structure.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Marc Fischer")]
 [assembly: AssemblyProduct("NSTN for N.I.N.A.")]
@@ -19,17 +19,19 @@ using System.Runtime.InteropServices;
 // The check program sets NstnClock and reads the plan's failure count.
 [assembly: InternalsVisibleTo("NINA.Plugin.Nstn.Checks")]
 
-[assembly: AssemblyVersion("0.6.0.0")]
-[assembly: AssemblyFileVersion("0.6.0.0")]
+[assembly: AssemblyVersion("0.7.0.0")]
+[assembly: AssemblyFileVersion("0.7.0.0")]
 
 // Built against NINA.Plugin 3.2.0.9001 (.NET 8).
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
 
-[assembly: AssemblyMetadata("Tags", "Sequencer,Conditions,Narrowband,Moon,Twilight,Sky brightness")]
+[assembly: AssemblyMetadata("Tags", "Sequencer,Conditions,Filter plan,Narrowband,Moon,Twilight,Sky brightness")]
 
 [assembly: AssemblyMetadata("LongDescription", @"NSTN models the sky background towards your target over the whole night: light pollution of the site (from its SQM value), twilight, and moonlight after Krisciunas & Schaefer, weighted per emission line and bandwidth. A band is worth exposing while its in-band background stays darker than a calibrated threshold.
 
-**Loop while NSTN window open** is a sequencer condition. Put it on an instruction set inside a target container, choose the band (L/RGB, H-alpha, O III, S II, H-beta) and its bandwidth, and the set runs only while that band's window is open. The condition shows tonight's window for the target directly in the sequencer.
+**NSTN filter plan** is the easy way: one instruction with a table - one row per filter (name as in the profile, exposures per round, exposure time) plus gain, offset, binning and rounds per filter for the whole plan. It waits for the first window, exposes each filter while its window is open, round after round, and ends by itself when no window opens again tonight - no clock time. It shows each row's window tonight and a night plan with the expected integration, and it stops after a number of failed exposures in a row instead of changing filters all night without an image.
+
+**Loop while NSTN window open** is the sequencer condition behind it, for building the pattern by hand. Put it on an instruction set inside a target container, choose the band (L/RGB, H-alpha, O III, S II, H-beta) and its bandwidth, and the set runs only while that band's window is open. The condition shows tonight's window for the target directly in the sequencer.
 
 The condition is checked between instructions: a running exposure is always finished, never aborted. Triggers such as autofocus, dithering and meridian flip keep working because the exposures are N.I.N.A.'s own instructions.
 

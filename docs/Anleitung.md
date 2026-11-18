@@ -225,8 +225,13 @@ sie schreibt nur eine Zusammenfassung ins Protokoll. Im Sequenzer zeigt sie:
 - **Ein Diagramm:** Höhe von Ziel und Mond, Mondabstand, Himmelshelligkeit mit SQM-Linie und
   die Fenster. Unter der Maus siehst du die Werte je 10 Minuten.
 - **Die Sequenzprüfung:** Warnungen (rot) und Hinweise zum Aufbau des Ziels, zum Beispiel ein
-  fehlender Meridianflip-Auslöser, obwohl das Ziel in der Nacht kulminiert. Mit dem
-  Filterplan meldet sie im Normalfall „Der Aufbau dieses Ziels folgt dem NSTN-Muster“.
+  fehlender Meridianflip-Auslöser, obwohl das Ziel in der Nacht kulminiert. Ist alles in
+  Ordnung, meldet sie „Der Aufbau dieses Ziels folgt dem NSTN-Muster“. Zum Filterplan gibt es
+  zwei eigene Meldungen:
+  - einen **Hinweis**, wenn der Plan im Rundlauf läuft und „AF nach Filterwechsel“ am Ziel hängt;
+  - eine **Warnung**, wenn im selben Container hinter dem Plan noch NSTN-Arbeit steht, etwa ein
+    zweiter Filterplan. Sie bekommt in dieser Nacht keine Zeit mehr, weil der Plan bis zum Ende
+    der Nacht läuft.
 - **„So wird eine NSTN-Sequenz aufgebaut“:** der empfohlene Aufbau zum Aufklappen.
 
 ---
@@ -292,6 +297,7 @@ rechnet je Zeile mit einer Linie und kann das deshalb nicht.
 | Ein Filter wird nie belichtet | Sein Fenster öffnet heute Nacht nicht, etwa Breitband bei Mond oder ein Ziel zu tief. Das zeigt die Fensterzeile im Plan („nie offen“) und die Nachtinfo. |
 | Der Plan wartet und wartet | Es ist noch kein Fenster offen. Die Zeile über dem Nachtplan sagt, wann das erste öffnet. |
 | Der Plan endet mitten in der Nacht mit einer Meldung | Mehrere Aufnahmen hintereinander sind gescheitert. Im Protokoll nach „exposures in a row failed“ und den Fehlern davor suchen. Meist ist die Kamera getrennt oder der Bildordner fehlt. |
+| Nachtinfo warnt „… steht in … hinter …“ | Hinter dem Filterplan steht noch ein NSTN-Block oder ein zweiter Plan. Seine Filter als Zeilen in den einen Plan aufnehmen. |
 | Sehr viele Autofokus-Läufe | Siehe [Autofokus und Rundlauf](#die-felder): „Runden je Filter“ erhöhen oder Fokus-Offsets nutzen. |
 | Im Protokoll viele Zeilen „skipped“ | N.I.N.A. schreibt je übersprungenem Block einige Zeilen. Das ist normal, wenn Fenster zu sind. |
 | Eine Sequenz mit NSTN wird ohne Plugin geöffnet | N.I.N.A. lädt sie zwar, die NSTN-Teile laufen aber nicht; NSTN-Blöcke werden still übersprungen. Das Plugin muss auf dem Aufnahme-PC installiert sein. |
