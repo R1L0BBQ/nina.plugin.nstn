@@ -15,8 +15,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
 
-[assembly: AssemblyVersion("0.5.0.0")]
-[assembly: AssemblyFileVersion("0.5.0.0")]
+[assembly: AssemblyVersion("0.6.0.0")]
+[assembly: AssemblyFileVersion("0.6.0.0")]
 
 // Built against NINA.Plugin 3.2.0.9001 (.NET 8).
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
@@ -30,6 +30,8 @@ using System.Runtime.InteropServices;
 The condition is checked between instructions: a running exposure is always finished, never aborted. Triggers such as autofocus, dithering and meridian flip keep working because the exposures are N.I.N.A.'s own instructions.
 
 Set the site's sky quality (SQM, mag/arcsec²) in the plugin options first.
+
+The plugin speaks N.I.N.A.'s language (Options > General > Language): English and German so far, other languages fall back to English. N.I.N.A.'s own instruction names in the texts come from N.I.N.A. itself.
 
 **NSTN Night Info** shows the night for its target container: twilight, moon phase, rise and set, the altitude of target and moon, their distance, the sky towards the target and tonight's windows, with values per time under the mouse. It also checks how the target's sequence is built and explains what to change. It takes no time when the sequence runs.
 

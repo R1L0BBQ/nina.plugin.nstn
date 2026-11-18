@@ -14,8 +14,8 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 
 | Pfad | Inhalt |
 |---|---|
-| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments`, `NightInfo`, `SequenceCheck` (net8.0, keine NINA-/WPF-Abhängigkeit) |
-| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator-, Katalog-, Night-Info- und Sequenzprüfungs-Tests (xUnit, net10.0) |
+| `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments`, `NightInfo`, `SequenceCheck`, `Text` + `Strings/*.json` (Übersetzungen) (net8.0, keine NINA-/WPF-Abhängigkeit) |
+| `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator-, Katalog-, Night-Info-, Sequenzprüfungs- und Übersetzungstests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
 | `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
 
@@ -181,6 +181,31 @@ Anzeige können also nicht auseinanderlaufen.
 
 ![NSTN Night Info in N.I.N.A. 3.2](docs/night-info-0.5.0.jpg)
 
+## Sprache (ab 0.6.0)
+
+Das Plugin spricht die Sprache von N.I.N.A. (*Optionen → Allgemein → Sprache*, je Profil):
+**Englisch und Deutsch**, andere Sprachen fallen auf Englisch zurück. Ein Wechsel wirkt
+sofort, ohne Neustart.
+
+- Texte stehen je Sprache in `src/Nstn.Core/Strings/<sprache>.json` (eingebettet, keine
+  Satelliten-DLLs – das Plugin bleibt drei DLLs). Eine neue Sprache = eine neue Datei mit
+  denselben Schlüsseln.
+- **N.I.N.A.s eigene Befehlsnamen** („Loop For Iterations“ / „Schleife für Iterationen“,
+  „Meridian Flip“ / „Meridianflip“, Menüpfade) stehen als Platzhalter `{nina:…}` in den
+  Texten und kommen zur Laufzeit aus N.I.N.A. – sie passen damit in jeder Sprache zu dem,
+  was der Benutzer im Sequencer sieht. Deutsche Texte setzen deshalb keinen Artikel vor
+  diese Namen.
+- Zahlen und Datum im Format der Sprache (20,7 mag/arcsec², „17. Nov.“).
+- Namen und Beschreibungen in der Befehlsliste: N.I.N.A.s Lader setzt sie einmal aus den
+  englischen Export-Metadaten; das Plugin benennt sie in `Initialize()` und bei jedem
+  Sprachwechsel um.
+- Tests: gleiche Schlüssel und Platzhalter in allen Sprachen, jeder im Code benutzte
+  Schlüssel vorhanden und jeder Eintrag benutzt (der Quelltext wird gelesen), die englische
+  Anleitung in der Plugin-Beschreibung (`SequenceGuide.cs`, aus `en.json` erzeugt) gleich
+  der im Sequencer.
+- Englisch bleiben: Protokollzeilen (für die Fehlersuche) und die Plugin-Beschreibung im
+  Plugin-Manager (Manifest).
+
 ## Beispiele
 
 `samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
@@ -222,6 +247,14 @@ Elternteil und findet sein Ziel nicht.
 | Tooltip, Leitfaden aufklappen, Laden ohne Verklemmung | ok |
 | Ausführen des Befehls im Sequenzlauf | **nicht geprüft** (nur Protokollzeile, kein Kamera-Lauf) |
 
+**Übersetzung 0.6.0 (18.11.2026, Profil `de-DE` und `en-GB`):**
+
+| Prüfung | Ergebnis |
+|---|---|
+| Start mit deutschem Profil (M31-NSTN-Plan.json) | Nachtinfo, Warte-Befehl, Nachtplan, Bedingung, Auswahllisten, Optionsseite auf Deutsch; „Schleife für Iterationen“, „Meridianflip“, „Optionen > Allgemein > Astrometrie“ aus N.I.N.A.; „17. Nov.“, „20,8 mag/arcsec²“ |
+| Live-Wechsel Deutsch → Englisch → Deutsch | alle Plugin-Texte folgen ohne Neustart. Befund: Name der Bedingung und gewählter Eintrag der Filterauswahl blieben zunächst in der alten Sprache (N.I.N.A.s `SequenceCondition.Name` meldet keine Änderung, Auswahl-Einträge ohne Änderungsmeldung) – behoben |
+| N.I.N.A.s eigene, schon geladene Befehle | behalten beim Live-Wechsel ihren alten Namen – Verhalten von N.I.N.A., nicht des Plugins |
+
 **Zwei Fehler aus dem Test vom 17.11., in 0.4.0 behoben:**
 
 - *Verklemmung beim Laden einer Sequenz im Block-Modus.* N.I.N.A. 3.2 schützt alle
@@ -241,7 +274,7 @@ Bedingung und Prüfung eine Protokollzeile (2000 Zeilen je 1000 Durchläufe); je
 einem echten Zustandswechsel. N.I.N.A. selbst schreibt weiter 4 Zeilen je übersprungenem
 Block – ein Grund mehr für den Warte-Befehl.
 
-## Bekannte Grenzen (Stand 0.5.0)
+## Bekannte Grenzen (Stand 0.6.0)
 
 - „From this block's filter" folgt einem Filterwechsel mit bis zu 30 s Verzögerung
   (Aktualisierungstakt), entschieden wird beim Prüfen vor jeder Aufnahme aber aktuell.
@@ -253,6 +286,7 @@ Block – ein Grund mehr für den Warte-Befehl.
 - Night Info: Sequenzprüfung nur innerhalb des eigenen Ziel-Containers (Trigger darüber
   zählen für den Meridian-Flip); Montierungstyp unbekannt, deshalb ist der fehlende Flip nur
   ein Hinweis. Nur die laufende Nacht.
+- Übersetzt nur Englisch und Deutsch; die Plugin-Beschreibung im Plugin-Manager bleibt englisch.
 - Uhrzeiten in der lokalen Zeit des Aufnahme-PCs.
 - Getestet nur mit der Simulator-Kamera, ohne Montierung, Filterrad, Guiding und
   Meridian-Flip.

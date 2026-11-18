@@ -72,13 +72,13 @@ namespace NINA.Plugin.Nstn.Instructions {
                 var nstn = conditions.OfType<NstnWindowCondition>().FirstOrDefault();
                 if (nstn == null) {
                     if (Expand(container, 0).Count > 0) {
-                        notes.Add($"'{container.Name}' has no NSTN condition and is left out of the plan.");
+                        notes.Add(Text.T("Plan_NoCondition", Text.Quote(container.Name)));
                     }
                     continue;
                 }
                 var forecast = nstn.CurrentForecast();
                 if (forecast == null) {
-                    notes.Add($"'{container.Name}': {string.Join(" ", nstn.Issues)}");
+                    notes.Add(Text.T("Plan_BlockIssues", Text.Quote(container.Name), string.Join(" ", nstn.Issues)));
                     continue;
                 }
                 int? maxPasses = null;
@@ -90,7 +90,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                             maxPasses = maxPasses == null ? loop.Iterations : Math.Min(maxPasses.Value, loop.Iterations);
                             break;
                         default:
-                            notes.Add($"'{container.Name}': condition '{condition.Name}' is not part of the estimate.");
+                            notes.Add(Text.T("Plan_ConditionNotEstimated", Text.Quote(container.Name), Text.Quote(condition.Name)));
                             break;
                     }
                 }
@@ -117,27 +117,26 @@ namespace NINA.Plugin.Nstn.Instructions {
                         endMs = endMs == null ? end : Math.Min(endMs.Value, end);
                         break;
                     default:
-                        notes.Add($"Loop condition '{condition.Name}' is not part of the estimate; the plan runs until no window opens again.");
+                        notes.Add(Text.T("Plan_LoopNotEstimated", Text.Quote(condition.Name)));
                         break;
                 }
             }
             if (outer.Count == 0) {
                 outerPasses = 1;
-                notes.Add($"'{parent.Name}' has no loop condition, so it runs once. Add one, e.g. Loop Until Time at dawn.");
+                notes.Add(Text.T("Plan_RunsOnce", Text.Quote(parent.Name)));
             }
 
             // Several blocks and one of them without an iteration limit: that block keeps
             // its window - worth saying, it is the opposite of what a round robin intends.
             if (blocks.Count > 1) {
                 foreach (var block in blocks.Where(b => b.MaxPasses == null)) {
-                    notes.Add($"'{block.Label}' has no Loop For Iterations: it keeps its window to itself (priority). Add one for a round robin.");
+                    notes.Add(Text.T("Plan_Priority", Text.Quote(block.Label)));
                 }
             }
 
             var overhead = options.OverheadSeconds;
             var result = PlanSimulator.Simulate(blocks, now, new PlanLimits(overhead, outerPasses, endMs));
-            notes.Add(string.Format(CultureInfo.InvariantCulture,
-                "Estimate with {0:0} s overhead per exposure; autofocus, meridian flip, filter changes and slews are not included.", overhead));
+            notes.Add(Text.T("Plan_Overhead", overhead));
 
             return Layout(result, now, notes);
         }
@@ -165,7 +164,7 @@ namespace NINA.Plugin.Nstn.Instructions {
             var byBand = result.Blocks
                 .GroupBy(y => BandName(y.Block.Forecast.Band))
                 .Select(g => $"{g.Key} {Duration(g.Sum(y => y.IntegrationSeconds))}");
-            var summary = $"Plan from {Clock(Math.Max(now, result.StartMs))}: {string.Join(", ", byBand)} · ends {Clock(result.EndMs)}, {Reason(result.Stop)}";
+            var summary = Text.T("Plan_Summary", Clock(Math.Max(now, result.StartMs)), string.Join(", ", byBand), Clock(result.EndMs), Reason(result.Stop));
 
             return new NightPlan(true, summary, Clock(axisStart), Clock(axisEnd), rows, string.Join(Environment.NewLine, notes.Distinct()));
         }
@@ -204,37 +203,30 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         private static string Expected(BlockYield y) {
             if (y.Exposures == 0) {
-                return "nothing";
+                return Text.T("Plan_Nothing");
             }
             var lengths = y.Block.PassExposures.Distinct().ToList();
-            var each = lengths.Count == 1 ? $" × {lengths[0].ToString("0.#", CultureInfo.InvariantCulture)} s" : " exposures";
-            return $"{Duration(y.IntegrationSeconds)} · {y.Exposures}{each}";
+            return lengths.Count == 1
+                ? Text.T("Plan_Each", Duration(y.IntegrationSeconds), y.Exposures, lengths[0])
+                : Text.T("Plan_Mixed", Duration(y.IntegrationSeconds), y.Exposures);
         }
 
         /// <summary>The band as the condition shows it: "O III 7 nm", "L/RGB".</summary>
         private static string BandName(EvalFilter band) =>
-            band.Broadband
-                ? Bands.ShortLabel(Bands.Broadband)
-                : $"{Bands.ShortLabel(band.Key)} {band.BandwidthNm.ToString("0.#", CultureInfo.InvariantCulture)} nm";
+            BandNames.WithBandwidth(band.Broadband ? BandNames.Broadband : band.Key, band.BandwidthNm);
 
         private static string Reason(PlanStop stop) => stop switch {
-            PlanStop.NothingOpensAgain => "no window opens again",
-            PlanStop.OuterPassesDone => "loop iterations used up",
-            PlanStop.EndReached => "loop end time reached",
-            PlanStop.NoProgress => "the open blocks contain no exposures",
-            PlanStop.ExposureLimit => $"stopped after {PlanSimulator.MaxExposures} exposures",
+            PlanStop.NothingOpensAgain => Text.T("Plan_StopNothingOpens"),
+            PlanStop.OuterPassesDone => Text.T("Plan_StopPasses"),
+            PlanStop.EndReached => Text.T("Plan_StopEndTime"),
+            PlanStop.NoProgress => Text.T("Plan_StopNoProgress"),
+            PlanStop.ExposureLimit => Text.T("Plan_StopLimit", PlanSimulator.MaxExposures),
             _ => stop.ToString(),
         };
 
-        private static string Clock(double epochMs) =>
-            NightModel.ToUtcDateTime(epochMs).ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
+        private static string Clock(double epochMs) => Text.Clock(NightModel.ToUtcDateTime(epochMs).ToLocalTime());
 
-        private static string Duration(double seconds) {
-            if (seconds < 60) {
-                return $"{Math.Round(seconds):0} s";
-            }
-            var total = (int)Math.Round(seconds / 60);
-            return total >= 60 ? $"{total / 60} h {total % 60:00} min" : $"{total} min";
-        }
+        private static string Duration(double seconds) =>
+            seconds < 60 ? $"{Math.Round(seconds):0} s" : Text.Duration(seconds / 60);
     }
 }

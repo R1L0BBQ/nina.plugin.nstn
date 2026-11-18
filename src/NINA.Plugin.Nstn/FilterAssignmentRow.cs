@@ -20,9 +20,9 @@ namespace NINA.Plugin.Nstn {
 
         public static IReadOnlyList<PresetChoice> Choices { get; } =
             new[] {
-                new PresetChoice(NotAssigned, "— not assigned —"),
-                new PresetChoice(Broadband, "Broadband: L, R, G, B or no filter"),
-                new PresetChoice(Custom, "Custom: line and bandwidth by hand"),
+                new PresetChoice(NotAssigned, () => Text.T("Assign_NotAssigned")),
+                new PresetChoice(Broadband, () => Text.T("Assign_BroadbandChoice")),
+                new PresetChoice(Custom, () => Text.T("Assign_CustomChoice")),
             }
             .Concat(Presets.All.Where(p => p.Name.Length > 0))
             .ToList();
@@ -119,11 +119,11 @@ namespace NINA.Plugin.Nstn {
                 if (assignment != null) {
                     return "→ " + assignment.Describe();
                 }
-                return choice == Custom ? "enter the bandwidth" : string.Empty;
+                return choice == Custom ? Text.T("Assign_EnterBandwidth") : string.Empty;
             }
         }
 
-        public string SuggestionText => Suggestion == null ? string.Empty : "Suggestion: " + Suggestion.Describe();
+        public string SuggestionText => Suggestion == null ? string.Empty : Text.T("Assign_Suggestion", Suggestion.Describe());
 
         public bool CanTakeSuggestion => Suggestion != null && choice == NotAssigned;
 

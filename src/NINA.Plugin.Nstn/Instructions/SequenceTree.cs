@@ -88,10 +88,7 @@ namespace NINA.Plugin.Nstn.Instructions {
             return node;
         }
 
-        public static string LabelOf(NstnWindowCondition condition) =>
-            condition.IsNarrowband
-                ? $"{condition.ShortLabel} {condition.BandwidthNm.ToString("0.#", CultureInfo.InvariantCulture)} nm"
-                : condition.ShortLabel;
+        public static string LabelOf(NstnWindowCondition condition) => BandNames.WithBandwidth(condition.Line, condition.BandwidthNm);
 
         private static SeqNode ItemOf(ISequenceItem item, int depth) => item switch {
             ISequenceContainer container => Convert(container, depth),

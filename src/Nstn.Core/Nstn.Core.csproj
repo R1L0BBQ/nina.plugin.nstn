@@ -20,6 +20,9 @@
     <!-- The web planner's filter tables, copied unchanged from astro-public. -->
     <EmbeddedResource Include="Filters\dnb-filter.csv" />
     <EmbeddedResource Include="Filters\schmalband-filter.csv" />
+    <!-- The user-facing texts, one table per language (Text.cs). In the assembly
+         itself, not in satellite assemblies: the plugin stays one folder of DLLs. -->
+    <EmbeddedResource Include="Strings\*.json" WithCulture="false" LogicalName="Nstn.Core.Strings.%(Filename).json" />
   </ItemGroup>
 
 </Project>

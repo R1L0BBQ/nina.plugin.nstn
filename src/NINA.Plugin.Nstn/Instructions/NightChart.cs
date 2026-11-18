@@ -16,7 +16,8 @@ namespace NINA.Plugin.Nstn.Instructions {
 
     public sealed record ChartBandRow(string Label, IReadOnlyList<ChartRect> Bars, string Summary, bool IsMoon = false);
 
-    public sealed record ChartFact(string Label, string Text);
+    /// <summary>One line of key data; <paramref name="Logged"/> lines also go to the log when the instruction runs.</summary>
+    public sealed record ChartFact(string Label, string Text, bool Logged = false);
 
     /// <summary>
     /// The night of one target, drawn to scale for the Night Info instruction:
@@ -101,16 +102,16 @@ namespace NINA.Plugin.Nstn.Instructions {
             var rows = new List<ChartBandRow>();
             var illumination = info.Moon.IlluminationPercent;
             rows.Add(new ChartBandRow(
-                "Moon up",
+                Text.T("Chart_MoonUp"),
                 Bars(night.MoonUp, X, 0.15 + 0.45 * illumination / 100.0),
-                night.MoonUp.Count == 0 ? "below the horizon" : $"{illumination:0} % lit",
+                night.MoonUp.Count == 0 ? Text.T("Chart_MoonBelow") : Text.T("Chart_MoonLit", illumination),
                 IsMoon: true));
             for (var b = 0; b < info.Bands.Count; b++) {
                 var band = info.Bands[b];
                 var label = b < bandLabels.Count ? bandLabels[b] : band.Band.Label;
-                var summary = band.NeverOpensAtSite ? "never at this site"
-                    : band.Segments.Count == 0 ? "closed tonight"
-                    : Duration(band.OpenMinutes);
+                var summary = band.NeverOpensAtSite ? Text.T("Chart_NeverAtSite")
+                    : band.Segments.Count == 0 ? Text.T("Chart_ClosedTonight")
+                    : Text.Duration(band.OpenMinutes);
                 rows.Add(new ChartBandRow(label, Bars(band.Segments, X, 0.85), summary));
             }
 
@@ -126,9 +127,9 @@ namespace NINA.Plugin.Nstn.Instructions {
                 SkyBrightness: NightChart.Frozen(skyLine),
                 Twilight: Twilight(info, indices, X),
                 LimitTop: AltitudeY(settings.MinAltitudeDeg),
-                LimitLabel: $"{settings.MinAltitudeDeg:0}°",
+                LimitLabel: Text.T("Chart_Limit", settings.MinAltitudeDeg),
                 SqmTop: SkyY(sqm),
-                SqmLabel: $"SQM {sqm.ToString("0.0#", Invariant)}",
+                SqmLabel: string.Format(Text.Culture, "SQM {0:0.0#}", sqm),
                 Rows: rows,
                 Ticks: Ticks(start, info.AxisEndMs, X),
                 Slots: Slots(info, indices, X, bandLabels),
@@ -205,13 +206,15 @@ namespace NINA.Plugin.Nstn.Instructions {
         private static string Tip(NightSlot slot, IReadOnlyList<string> open) {
             var lines = new List<string> {
                 Clock(slot.T),
-                $"Target {Degrees(slot.TargetAltitude)}" + (slot.TargetAltitude > 0 ? $" · airmass {slot.Airmass.ToString("0.00", Invariant)}" : " (below the horizon)"),
+                slot.TargetAltitude > 0
+                    ? Text.T("Tip_Target", Degrees(slot.TargetAltitude), slot.Airmass)
+                    : Text.T("Tip_TargetDown", Degrees(slot.TargetAltitude)),
                 slot.MoonAltitude > 0
-                    ? $"Moon {Degrees(slot.MoonAltitude)} · {slot.MoonSeparationDeg:0}° from the target"
-                    : $"Moon below the horizon · {slot.MoonSeparationDeg:0}° from the target",
-                $"Sky towards the target {slot.SkyMagnitude.ToString("0.0", Invariant)} mag/arcsec²",
-                $"Sun {Degrees(slot.SunAltitude)}",
-                open.Count == 0 ? "No window open" : $"Open: {string.Join(", ", open)}",
+                    ? Text.T("Tip_MoonUp", Degrees(slot.MoonAltitude), slot.MoonSeparationDeg)
+                    : Text.T("Tip_MoonDown", slot.MoonSeparationDeg),
+                Text.T("Tip_Sky", slot.SkyMagnitude),
+                Text.T("Tip_Sun", Degrees(slot.SunAltitude)),
+                open.Count == 0 ? Text.T("Tip_NoneOpen") : Text.T("Tip_Open", string.Join(", ", open)),
             };
             return string.Join(Environment.NewLine, lines);
         }
@@ -222,91 +225,100 @@ namespace NINA.Plugin.Nstn.Instructions {
             string At(NightEventKind kind) => info.EventMs(kind) is double ms ? Clock(ms) : "–";
 
             var dark = night.HasNight
-                ? $"dark {string.Join(", ", night.AstronomicalNight.Select(Span))} ({Duration(night.NightMinutes)})"
-                : "no astronomical night";
-            facts.Add(new ChartFact("Night", $"{DateLabel(info.Bundle.NightDate)} · sunset {At(NightEventKind.Sunset)} · {dark} · sunrise {At(NightEventKind.Sunrise)}"));
-            facts.Add(new ChartFact("Twilight",
-                $"civil {At(NightEventKind.CivilDusk)} / {At(NightEventKind.CivilDawn)} · nautical {At(NightEventKind.NauticalDusk)} / {At(NightEventKind.NauticalDawn)} · astronomical {At(NightEventKind.AstronomicalDusk)} / {At(NightEventKind.AstronomicalDawn)}"));
+                ? Text.T("Fact_Dark", string.Join(", ", night.AstronomicalNight.Select(Span)), Text.Duration(night.NightMinutes))
+                : Text.T("Fact_NoAstroNight");
+            facts.Add(new ChartFact(Text.T("Fact_Night"),
+                Text.T("Fact_NightText", Text.Date(info.Bundle.NightDate), At(NightEventKind.Sunset), dark, At(NightEventKind.Sunrise)), Logged: true));
+            facts.Add(new ChartFact(Text.T("Fact_Twilight"), Text.T("Fact_TwilightText",
+                At(NightEventKind.CivilDusk), At(NightEventKind.CivilDawn),
+                At(NightEventKind.NauticalDusk), At(NightEventKind.NauticalDawn),
+                At(NightEventKind.AstronomicalDusk), At(NightEventKind.AstronomicalDawn))));
 
             var moon = info.Moon;
-            var moonTimes = new List<string>();
+            var moonParts = new List<string>();
             if (info.EventMs(NightEventKind.Moonrise) is double rise) {
-                moonTimes.Add($"rises {Clock(rise)}");
+                moonParts.Add(Text.T("Fact_MoonRises", Clock(rise)));
             }
             if (info.EventMs(NightEventKind.Moonset) is double set) {
-                moonTimes.Add($"sets {Clock(set)}");
+                moonParts.Add(Text.T("Fact_MoonSets", Clock(set)));
             }
-            if (moonTimes.Count == 0) {
-                moonTimes.Add(night.MoonUp.Count == 0 ? "below the horizon all night" : "up all night");
+            if (moonParts.Count == 0) {
+                moonParts.Add(night.MoonUp.Count == 0 ? Text.T("Fact_MoonBelowAllNight") : Text.T("Fact_MoonUpAllNight"));
             }
-            var nextPhase = moon.Waxing ? ("full moon", moon.NextFullMoonMs) : ("new moon", moon.NextNewMoonMs);
-            var next = nextPhase.Item2 is double nextMs ? $" · next {nextPhase.Item1} {DateLabel(DateOnly.FromDateTime(NightModel.ToUtcDateTime(nextMs).ToLocalTime()))}" : string.Empty;
-            var moonFree = night.HasNight ? $" · moon-free dark {Duration(night.MoonFreeMinutes)}" : string.Empty;
-            facts.Add(new ChartFact("Moon", $"{PhaseName(moon.Phase)}, {moon.IlluminationPercent:0} % lit · {string.Join(", ", moonTimes)}{moonFree}{next}"));
+            if (night.HasNight) {
+                moonParts.Add(Text.T("Fact_MoonFree", Text.Duration(night.MoonFreeMinutes)));
+            }
+            var nextMs = moon.Waxing ? moon.NextFullMoonMs : moon.NextNewMoonMs;
+            if (nextMs is double next) {
+                var date = Text.Date(DateOnly.FromDateTime(Local(next)));
+                moonParts.Add(moon.Waxing ? Text.T("Fact_NextFull", date) : Text.T("Fact_NextNew", date));
+            }
+            facts.Add(new ChartFact(Text.T("Fact_Moon"),
+                Text.T("Fact_MoonText", PhaseName(moon.Phase), moon.IlluminationPercent, string.Join(" · ", moonParts)), Logged: true));
 
             var target = info.Bundle.Target;
-            var targetText = $"transit {Clock(target.TransitMs)} at {Degrees(target.TransitAltitude)}";
-            targetText += info.TargetUp.Count == 0
-                ? $" · never above {info.Settings.MinAltitudeDeg:0}°"
-                : $" · above {info.Settings.MinAltitudeDeg:0}° {string.Join(", ", info.TargetUp.Select(Span))}";
+            var limit = info.Settings.MinAltitudeDeg;
+            var targetParts = new List<string> { Text.T("Fact_Transit", Clock(target.TransitMs), Degrees(target.TransitAltitude)) };
+            targetParts.Add(info.TargetUp.Count == 0
+                ? Text.T("Fact_NeverAbove", limit)
+                : Text.T("Fact_Above", limit, string.Join(", ", info.TargetUp.Select(Span))));
             if (info.Usable.Count > 0) {
-                targetText += $" · usable {Duration(info.UsableMinutes)}, of which moon-free {Duration(NightModel.DurationMinutes(info.UsableMoonFree))}";
+                targetParts.Add(Text.T("Fact_Usable", Text.Duration(info.UsableMinutes), Text.Duration(NightModel.DurationMinutes(info.UsableMoonFree))));
             }
-            facts.Add(new ChartFact("Target", targetText));
+            facts.Add(new ChartFact(Text.T("Fact_Target"), string.Join(" · ", targetParts), Logged: true));
 
             if (info.MinMoonSeparationDeg is double minSeparation && info.MaxMoonSeparationDeg is double maxSeparation) {
                 var range = Math.Round(maxSeparation) - Math.Round(minSeparation) < 1
                     ? $"{minSeparation:0}°"
                     : $"{minSeparation:0}°–{maxSeparation:0}°";
-                var darkest = info.DarkestSkyMagnitude is double magnitude ? $" · darkest sky towards it {magnitude.ToString("0.0", Invariant)} mag/arcsec²" : string.Empty;
-                facts.Add(new ChartFact("Moon distance", $"{range} while usable · moon up {Duration(info.MoonUpWhileUsableMinutes)} of that time{darkest}"));
+                var distance = Text.T("Fact_DistanceText", range, Text.Duration(info.MoonUpWhileUsableMinutes));
+                if (info.DarkestSkyMagnitude is double magnitude) {
+                    distance += " · " + Text.T("Fact_Darkest", magnitude);
+                }
+                facts.Add(new ChartFact(Text.T("Fact_MoonDistance"), distance));
             }
 
             var windows = info.Bands.Select((band, b) => {
                 var label = b < bandLabels.Count ? bandLabels[b] : band.Band.Label;
                 if (band.NeverOpensAtSite) {
-                    return $"{label} never at this site";
+                    return Text.T("Fact_WindowNeverAtSite", label);
                 }
                 return band.Segments.Count == 0
-                    ? $"{label} closed"
-                    : $"{label} {string.Join(", ", band.Segments.Select(Span))} ({Duration(band.OpenMinutes)})";
+                    ? Text.T("Fact_WindowClosed", label)
+                    : $"{label} {string.Join(", ", band.Segments.Select(Span))} ({Text.Duration(band.OpenMinutes)})";
             });
-            facts.Add(new ChartFact("Windows", string.Join(" · ", windows)));
+            facts.Add(new ChartFact(Text.T("Fact_Windows"), string.Join(" · ", windows), Logged: true));
 
             if (info.SlotAt(nowMs) is NightSlot now && nowMs >= info.AxisStartMs && nowMs <= info.AxisEndMs) {
-                var moonNow = now.MoonAltitude > 0 ? $"moon {Degrees(now.MoonAltitude)}, {now.MoonSeparationDeg:0}° away" : "moon below the horizon";
-                facts.Add(new ChartFact("Now", $"target {Degrees(now.TargetAltitude)} · {moonNow} · sky {now.SkyMagnitude.ToString("0.0", Invariant)} mag/arcsec² · sun {Degrees(now.SunAltitude)}"));
+                var moonNow = now.MoonAltitude > 0
+                    ? Text.T("Fact_NowMoonUp", Degrees(now.MoonAltitude), now.MoonSeparationDeg)
+                    : Text.T("Fact_NowMoonDown");
+                facts.Add(new ChartFact(Text.T("Fact_Now"),
+                    Text.T("Fact_NowText", Degrees(now.TargetAltitude), moonNow, now.SkyMagnitude, Degrees(now.SunAltitude))));
             }
             return facts;
         }
 
         public static string PhaseName(LunarPhase phase) => phase switch {
-            LunarPhase.New => "New moon",
-            LunarPhase.WaxingCrescent => "Waxing crescent",
-            LunarPhase.FirstQuarter => "First quarter",
-            LunarPhase.WaxingGibbous => "Waxing gibbous",
-            LunarPhase.Full => "Full moon",
-            LunarPhase.WaningGibbous => "Waning gibbous",
-            LunarPhase.LastQuarter => "Last quarter",
-            _ => "Waning crescent",
+            LunarPhase.New => Text.T("Phase_New"),
+            LunarPhase.WaxingCrescent => Text.T("Phase_WaxingCrescent"),
+            LunarPhase.FirstQuarter => Text.T("Phase_FirstQuarter"),
+            LunarPhase.WaxingGibbous => Text.T("Phase_WaxingGibbous"),
+            LunarPhase.Full => Text.T("Phase_Full"),
+            LunarPhase.WaningGibbous => Text.T("Phase_WaningGibbous"),
+            LunarPhase.LastQuarter => Text.T("Phase_LastQuarter"),
+            _ => Text.T("Phase_WaningCrescent"),
         };
 
         private static DateTime Local(double ms) => NightModel.ToUtcDateTime(ms).ToLocalTime();
 
-        private static string Clock(double ms) => Local(ms).ToString("HH:mm", Invariant);
+        private static string Clock(double ms) => Text.Clock(Local(ms));
 
         private static string Span(Interval interval) => $"{Clock(interval.Start)}–{Clock(interval.End)}";
-
-        private static string DateLabel(DateOnly date) => date.ToString("d MMM", Invariant);
 
         private static string Degrees(double value) {
             var rounded = Math.Round(value);
             return rounded == 0 ? "0°" : $"{rounded:0}°".Replace("-", "−");
-        }
-
-        public static string Duration(double minutes) {
-            var total = (int)Math.Round(minutes);
-            return total >= 60 ? $"{total / 60} h {total % 60} min" : $"{total} min";
         }
     }
 }

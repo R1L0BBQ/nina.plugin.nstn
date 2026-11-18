@@ -31,9 +31,19 @@ namespace NINA.Plugin.Nstn {
             this.profileService = profileService;
             options = new NstnOptions(profileService);
             profileService.ProfileChanged += OnProfileChanged;
+            PluginLanguage.Follow(profileService);
             TakeSuggestionsCommand = new ActionCommand(TakeSuggestions);
             ReloadFiltersCommand = new ActionCommand(BuildRows);
             WatchFilterList();
+        }
+
+        /// <summary>
+        /// Runs after N.I.N.A.'s loader has given the instructions their English names
+        /// from the export metadata: now they get the names in the user's language.
+        /// </summary>
+        public override Task Initialize() {
+            PluginLanguage.Retitle();
+            return base.Initialize();
         }
 
         public override Task Teardown() {
@@ -161,7 +171,7 @@ namespace NINA.Plugin.Nstn {
                 var floor3 = NightModel.MinimumSkyBrightness(NightModel.LineFilter("Ha", 3), settings);
                 var floor7 = NightModel.MinimumSkyBrightness(NightModel.LineFilter("Ha", 7), settings);
                 var floor12 = NightModel.MinimumSkyBrightness(NightModel.LineFilter("Ha", 12), settings);
-                return $"Narrowband bands open only where the site is at least this dark: 3 nm {floor3:0.00}, 7 nm {floor7:0.00}, 12 nm {floor12:0.00} mag/arcsec².";
+                return Text.T("Options_Floors", floor3, floor7, floor12);
             }
         }
 

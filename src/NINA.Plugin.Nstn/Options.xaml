@@ -3,14 +3,15 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:NINA.Plugin.Nstn"
-    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary">
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
+    xmlns:nstn="clr-namespace:NINA.Plugin.Nstn">
 
     <!--  NINA looks the options page up as AssemblyTitle + "_Options"; the data context is NstnPlugin.  -->
     <DataTemplate x:Key="NSTN – Narrowband Saves The Night_Options">
         <StackPanel Margin="5" Orientation="Vertical">
             <TextBlock
                 Margin="0,0,0,10"
-                Text="Settings of the active profile. The site's own sky quality is required; the thresholds are calibrated defaults and only need changing for bright sites."
+                Text="{nstn:T Options_Intro}"
                 TextWrapping="Wrap" />
 
             <Grid>
@@ -27,7 +28,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Sky quality at the zenith (SQM)" />
+                <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="{nstn:T Options_Sqm}" />
                 <ninactrl:UnitTextBox
                     Grid.Row="0"
                     Grid.Column="1"
@@ -41,9 +42,9 @@
                     Margin="5,0,0,0"
                     VerticalAlignment="Center"
                     Opacity="0.7"
-                    Text="0 = not set. A measured value, not a Bortle guess." />
+                    Text="{nstn:T Options_SqmHint}" />
 
-                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Threshold broadband (L/RGB)" />
+                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="{nstn:T Options_ThresholdBroadband}" />
                 <ninactrl:UnitTextBox
                     Grid.Row="1"
                     Grid.Column="1"
@@ -57,9 +58,9 @@
                     Margin="5,0,0,0"
                     VerticalAlignment="Center"
                     Opacity="0.7"
-                    Text="Default 20.6" />
+                    Text="{nstn:T Options_ThresholdBroadbandHint}" />
 
-                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Threshold narrowband (in band)" />
+                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{nstn:T Options_ThresholdNarrowband}" />
                 <ninactrl:UnitTextBox
                     Grid.Row="2"
                     Grid.Column="1"
@@ -73,9 +74,9 @@
                     Margin="5,0,0,0"
                     VerticalAlignment="Center"
                     Opacity="0.7"
-                    Text="Default 23.1" />
+                    Text="{nstn:T Options_ThresholdNarrowbandHint}" />
 
-                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Minimum target altitude" />
+                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="{nstn:T Options_MinAltitude}" />
                 <ninactrl:UnitTextBox
                     Grid.Row="3"
                     Grid.Column="1"
@@ -89,9 +90,9 @@
                     Margin="5,0,0,0"
                     VerticalAlignment="Center"
                     Opacity="0.7"
-                    Text="Default 20" />
+                    Text="{nstn:T Options_MinAltitudeHint}" />
 
-                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Night plan: overhead per exposure" />
+                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="{nstn:T Options_Overhead}" />
                 <ninactrl:UnitTextBox
                     Grid.Row="4"
                     Grid.Column="1"
@@ -105,7 +106,7 @@
                     Margin="5,0,0,0"
                     VerticalAlignment="Center"
                     Opacity="0.7"
-                    Text="Download, saving, dithering on average. Only for the estimate. Default 10" />
+                    Text="{nstn:T Options_OverheadHint}" />
             </Grid>
 
             <TextBlock
@@ -116,22 +117,22 @@
             <TextBlock
                 Margin="0,4,0,0"
                 Opacity="0.8"
-                Text="Site latitude and longitude come from the NINA profile (Options > General > Astrometry); times are shown in this PC's local time."
+                Text="{nstn:T Options_SiteNote}"
                 TextWrapping="Wrap" />
 
             <!--  What each filter of the profile passes, for "From this block's filter" in the condition.  -->
             <TextBlock
                 Margin="0,18,0,4"
                 FontWeight="Bold"
-                Text="Filters of this profile" />
+                Text="{nstn:T Options_FiltersTitle}" />
             <TextBlock
                 Opacity="0.8"
-                Text="What each filter of the filter wheel list passes. A condition set to 'From this block's filter' takes its band from here, so changing the filter of a Smart Exposure changes the band with it. Suggestions are only applied on request; a bandwidth is never guessed."
+                Text="{nstn:T Options_FiltersIntro}"
                 TextWrapping="Wrap" />
             <TextBlock
                 Margin="0,6,0,0"
                 Opacity="0.8"
-                Text="The profile has no filters in its filter wheel list (Options > Equipment > Filter Wheel)."
+                Text="{nstn:T Options_NoFilters}"
                 TextWrapping="Wrap">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -196,12 +197,12 @@
                 <Button
                     Padding="8,2"
                     Command="{Binding TakeSuggestionsCommand}"
-                    Content="Take suggestions for unassigned filters" />
+                    Content="{nstn:T Options_TakeSuggestions}" />
                 <Button
                     Margin="8,0,0,0"
                     Padding="8,2"
                     Command="{Binding ReloadFiltersCommand}"
-                    Content="Reload filter list" />
+                    Content="{nstn:T Options_Reload}" />
             </StackPanel>
         </StackPanel>
     </DataTemplate>

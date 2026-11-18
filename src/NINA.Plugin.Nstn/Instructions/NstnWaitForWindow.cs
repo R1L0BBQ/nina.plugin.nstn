@@ -37,7 +37,7 @@ namespace NINA.Plugin.Nstn.Instructions {
     [ExportMetadata("Category", "NSTN")]
     [Export(typeof(ISequenceItem))]
     [JsonObject(MemberSerialization.OptIn)]
-    public class NstnWaitForWindow : SequenceItem, IValidatable {
+    public class NstnWaitForWindow : SequenceItem, IValidatable, IFollowsLanguage {
 
         // Re-evaluate at least this often while waiting: options, target or the
         // night itself (at local noon) may change underneath a long wait.
@@ -62,6 +62,17 @@ namespace NINA.Plugin.Nstn.Instructions {
             this.profileService = profileService;
             planWatchdog = new ConditionWatchdog(() => { RefreshPlan(); return Task.CompletedTask; }, PlanRefresh);
             RecalculateCommand = new ActionCommand(() => Task.Run(RefreshPlan));
+            PluginLanguage.Follow(profileService);
+            PluginLanguage.Register(this, () => Text.T("Name_Wait"), () => Text.T("Desc_Wait"));
+        }
+
+        public void LanguageChanged() {
+            if (Parent != null) {
+                Task.Run(() => {
+                    Validate();
+                    RefreshPlan();
+                });
+            }
         }
 
         private NstnWaitForWindow(NstnWaitForWindow cloneMe) : this(cloneMe.profileService) {
@@ -91,7 +102,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                     next = NightPlanBuilder.Build(Parent, new NstnOptions(profileService), DateTime.UtcNow);
                 } catch (Exception ex) {
                     Logger.Error(ex);
-                    next = NightPlan.Empty with { HasPlan = true, Summary = $"Night plan failed: {ex.Message}" };
+                    next = NightPlan.Empty with { HasPlan = true, Summary = Text.T("Plan_Failed", ex.Message) };
                 }
                 if (next.Signature != plan.Signature || next.HasPlan != plan.HasPlan) {
                     Plan = next;
@@ -138,7 +149,7 @@ namespace NINA.Plugin.Nstn.Instructions {
         public bool Validate() {
             var state = Evaluate();
             Issues = state.Watched == 0
-                ? new List<string> { "No 'Loop while NSTN window open' condition in the blocks of this instruction set - nothing to wait for." }
+                ? new List<string> { Text.T("Wait_IssueNoConditions") }
                 : new List<string>();
             return Issues.Count == 0;
         }
@@ -210,15 +221,15 @@ namespace NINA.Plugin.Nstn.Instructions {
             var bands = string.Join(", ", watched.Select(w => w.Condition.ShortLabel).Distinct());
             string status;
             if (watched.Count == 0) {
-                status = "No NSTN condition to wait for";
+                status = Text.T("Wait_NoCondition");
             } else if (open.Count > 0) {
-                status = $"Open now: {string.Join(", ", open.Select(w => w.Condition.ShortLabel).Distinct())}";
+                status = Text.T("Wait_OpenNow", string.Join(", ", open.Select(w => w.Condition.ShortLabel).Distinct()));
             } else if (next.Condition != null) {
-                status = $"Waiting, {next.Condition.ShortLabel} opens {Clock(next.Opening.Value)}";
+                status = Text.T("Wait_Opens", next.Condition.ShortLabel, Clock(next.Opening.Value));
             } else {
-                status = "No window opens again tonight";
+                status = Text.T("Wait_NothingTonight");
             }
-            WaitSummary = watched.Count == 0 ? status : $"Watches {bands} · {status}";
+            WaitSummary = watched.Count == 0 ? status : Text.T("Wait_Watches", bands, status);
 
             return new WaitState(
                 Watched: watched.Count,
@@ -255,7 +266,6 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         private static double Now() => NightModel.ToEpochMs(DateTime.UtcNow);
 
-        private static string Clock(double epochMs) =>
-            NightModel.ToUtcDateTime(epochMs).ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        private static string Clock(double epochMs) => Text.Clock(NightModel.ToUtcDateTime(epochMs).ToLocalTime());
     }
 }

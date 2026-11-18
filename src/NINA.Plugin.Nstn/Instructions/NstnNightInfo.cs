@@ -34,7 +34,7 @@ namespace NINA.Plugin.Nstn.Instructions {
     [ExportMetadata("Category", "NSTN")]
     [Export(typeof(ISequenceItem))]
     [JsonObject(MemberSerialization.OptIn)]
-    public class NstnNightInfo : SequenceItem, IValidatable {
+    public class NstnNightInfo : SequenceItem, IValidatable, IFollowsLanguage {
 
         // Follows edits to the sequence and moves the "now" line. Like the night plan
         // it only runs while the instruction is part of the active sequence.
@@ -61,6 +61,15 @@ namespace NINA.Plugin.Nstn.Instructions {
             this.profileService = profileService;
             watchdog = new ConditionWatchdog(() => { Refresh(); return Task.CompletedTask; }, RefreshEvery);
             RecalculateCommand = new ActionCommand(() => Task.Run(Refresh));
+            PluginLanguage.Follow(profileService);
+            PluginLanguage.Register(this, () => Text.T("Name_NightInfo"), () => Text.T("Desc_NightInfo"));
+        }
+
+        /// <summary>Everything shown is text built in the language of the moment: rebuild it.</summary>
+        public void LanguageChanged() {
+            if (Parent != null) {
+                Task.Run(Refresh);
+            }
         }
 
         private NstnNightInfo(NstnNightInfo cloneMe) : this(cloneMe.profileService) {
@@ -106,9 +115,11 @@ namespace NINA.Plugin.Nstn.Instructions {
                 var warnings = findings.Count(f => f.Level == FindingLevel.Warning);
                 var hints = findings.Count - warnings;
                 if (findings.Count == 0) {
-                    return "Sequence check: the structure of this target follows the NSTN pattern.";
+                    return Text.T("Info_CheckOk");
                 }
-                return $"Sequence check: {Count(warnings, "warning")}, {Count(hints, "hint")}";
+                return Text.T("Info_CheckCounts",
+                    warnings == 1 ? Text.T("Info_Warning1") : Text.T("Info_Warnings", warnings),
+                    hints == 1 ? Text.T("Info_Hint1") : Text.T("Info_Hints", hints));
             }
         }
 
@@ -123,10 +134,6 @@ namespace NINA.Plugin.Nstn.Instructions {
                 RaisePropertyChanged();
             }
         }
-
-        public string GuideTree => SequenceGuide.Tree;
-
-        public string GuideRules => SequenceGuide.Rules;
 
         public IList<string> Issues {
             get => issues;
@@ -158,17 +165,17 @@ namespace NINA.Plugin.Nstn.Instructions {
         public bool Validate() {
             var found = new List<string>();
             if (ItemUtility.RetrieveContextCoordinates(Parent) == null) {
-                found.Add("Place NSTN Night Info inside a target container: it shows the night for that target.");
+                found.Add(Text.T("Info_IssueNoTarget"));
             }
             if (!new NstnOptions(profileService).HasSkyQuality) {
-                found.Add("Set the site's sky quality (SQM) in Options > Plugins > NSTN.");
+                found.Add(Text.T("Issue_NoSqm"));
             }
             Issues = found;
             return found.Count == 0;
         }
 
         public override Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token) {
-            var facts = chart.Facts.Where(f => f.Label is "Night" or "Moon" or "Target" or "Windows").Select(f => $"{f.Label}: {f.Text}");
+            var facts = chart.Facts.Where(f => f.Logged).Select(f => $"{f.Label}: {f.Text}");
             Logger.Info($"{nameof(NstnNightInfo)}: {string.Join(" | ", facts)}");
             return Task.CompletedTask;
         }
@@ -223,8 +230,8 @@ namespace NINA.Plugin.Nstn.Instructions {
                         .Select(g => g.First())
                         .ToList();
                     if (watched.Count == 0) {
-                        watched = DefaultBands.Select(b => (b, b.Broadband ? Bands.ShortLabel(Bands.Broadband) : $"{Bands.ShortLabel(b.Key)} {b.BandwidthNm:0.#} nm")).ToList();
-                        BandsNote = "No NSTN condition below this target yet - the rows show the usual bands.";
+                        watched = DefaultBands.Select(b => (b, BandNames.WithBandwidth(b.Broadband ? BandNames.Broadband : b.Key, b.BandwidthNm))).ToList();
+                        BandsNote = Text.T("Info_BandsDefault");
                     } else {
                         BandsNote = string.Empty;
                     }
@@ -238,17 +245,16 @@ namespace NINA.Plugin.Nstn.Instructions {
                             flipAbove,
                             info,
                             SequenceTree.LinesOfFilter(options.Assignments),
-                            ms => NightModel.ToUtcDateTime(ms).ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+                            ms => Text.Clock(NightModel.ToUtcDateTime(ms).ToLocalTime()));
                         Findings = SequenceCheck.Check(tree, context);
                     }
                 } catch (Exception ex) {
                     Logger.Error(ex);
                     Chart = NightChart.Empty;
-                    Findings = new[] { new SequenceFinding(FindingLevel.Warning, $"NSTN Night Info failed: {ex.Message}") };
+                    Findings = new[] { new SequenceFinding(FindingLevel.Warning, Text.T("Info_Failed", ex.Message)) };
                 }
             }
         }
 
-        private static string Count(int n, string noun) => n == 1 ? $"1 {noun}" : $"{n} {noun}s";
     }
 }

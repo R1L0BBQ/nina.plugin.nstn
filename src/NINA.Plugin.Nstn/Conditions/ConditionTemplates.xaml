@@ -5,6 +5,7 @@
     xmlns:local="clr-namespace:NINA.Plugin.Nstn.Conditions"
     xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
     xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
+    xmlns:nstn="clr-namespace:NINA.Plugin.Nstn"
     xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
 
     <BooleanToVisibilityConverter x:Key="NstnBooleanToVisibility" />
@@ -15,7 +16,7 @@
             <view:SequenceBlockView.SequenceItemContent>
                 <StackPanel Orientation="Vertical">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock VerticalAlignment="Center" Text="Filter" />
+                        <TextBlock VerticalAlignment="Center" Text="{nstn:T Cond_Filter}" />
                         <ComboBox
                             MinWidth="230"
                             Margin="5,0,0,0"
@@ -24,11 +25,11 @@
                             ItemsSource="{Binding PresetChoices}"
                             SelectedValue="{Binding SelectedPreset}"
                             SelectedValuePath="Name"
-                            ToolTip="Takes band and bandwidth from the NSTN filter tables. A suggestion: check the passbands of your own filter." />
+                            ToolTip="{nstn:T Cond_FilterTip}" />
                         <TextBlock
                             Margin="10,0,0,0"
                             VerticalAlignment="Center"
-                            Text="Band" />
+                            Text="{nstn:T Cond_Band}" />
                         <ComboBox
                             MinWidth="130"
                             Margin="5,0,0,0"
@@ -46,7 +47,7 @@
                             IsEnabled="{Binding IsBandwidthEditable}"
                             Text="{Binding BandwidthNm, UpdateSourceTrigger=LostFocus}"
                             TextAlignment="Right"
-                            ToolTip="Bandwidth (FWHM) of the filter for this line"
+                            ToolTip="{nstn:T Cond_BandwidthTip}"
                             Unit="nm"
                             Visibility="{Binding IsNarrowband, Converter={StaticResource NstnBooleanToVisibility}}" />
                     </StackPanel>

@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:NINA.Plugin.Nstn.Instructions"
     xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
+    xmlns:nstn="clr-namespace:NINA.Plugin.Nstn"
     xmlns:view="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
 
     <BooleanToVisibilityConverter x:Key="NstnPlanVisibility" />
@@ -21,7 +22,7 @@
         <view:SequenceBlockView>
             <view:SequenceBlockView.SequenceItemContent>
                 <StackPanel Orientation="Vertical">
-                    <TextBlock VerticalAlignment="Center" Text="Wait until one of the NSTN windows in this set opens" />
+                    <TextBlock VerticalAlignment="Center" Text="{nstn:T Wait_Title}" />
                     <TextBlock
                         Margin="0,3,0,0"
                         Opacity="0.8"
@@ -122,7 +123,7 @@
                             Padding="8,2"
                             HorizontalAlignment="Left"
                             Command="{Binding RecalculateCommand}"
-                            Content="Recalculate" />
+                            Content="{nstn:T Common_Recalculate}" />
                     </StackPanel>
                 </StackPanel>
             </view:SequenceBlockView.SequenceItemContent>
@@ -142,7 +143,7 @@
         <view:SequenceBlockView>
             <view:SequenceBlockView.SequenceItemContent>
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Text="The night for this target - takes no time when the sequence runs" />
+                    <TextBlock Text="{nstn:T Info_Title}" />
 
                     <!--  Key data of the night.  -->
                     <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Chart.Facts}">
@@ -183,9 +184,9 @@
 
                         <!--  Altitude: target (solid) and moon (dashed) over the twilight.  -->
                         <StackPanel Grid.Row="0" VerticalAlignment="Center">
-                            <TextBlock Text="Altitude" />
-                            <TextBlock Foreground="{DynamicResource ButtonBackgroundBrush}" Text="━ target" />
-                            <TextBlock Opacity="0.8" Text="┅ moon" />
+                            <TextBlock Text="{nstn:T Chart_Altitude}" />
+                            <TextBlock Foreground="{DynamicResource ButtonBackgroundBrush}" Text="{nstn:T Chart_Target}" />
+                            <TextBlock Opacity="0.8" Text="{nstn:T Chart_Moon}" />
                         </StackPanel>
                         <Canvas
                             Grid.Row="0"
@@ -258,14 +259,14 @@
                                 Margin="0,58,0,0"
                                 FontSize="10"
                                 Opacity="0.7"
-                                Text="{Binding Chart.LimitLabel, StringFormat='limit {0}'}" />
+                                Text="{Binding Chart.LimitLabel}" />
                         </StackPanel>
 
                         <!--  Distance between moon and target.  -->
                         <TextBlock
                             Grid.Row="1"
                             VerticalAlignment="Center"
-                            Text="Moon distance" />
+                            Text="{nstn:T Chart_MoonDistance}" />
                         <Canvas
                             Grid.Row="1"
                             Grid.Column="1"
@@ -297,7 +298,7 @@
                         <TextBlock
                             Grid.Row="2"
                             VerticalAlignment="Center"
-                            Text="Sky (V)" />
+                            Text="{nstn:T Chart_Sky}" />
                         <Canvas
                             Grid.Row="2"
                             Grid.Column="1"
@@ -331,7 +332,7 @@
                             <TextBlock
                                 FontSize="10"
                                 Opacity="0.7"
-                                Text="22 mag (dark)" />
+                                Text="{nstn:T Chart_Dark}" />
                             <TextBlock
                                 FontSize="10"
                                 Opacity="0.7"
@@ -535,12 +536,12 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Expander Margin="0,8,0,0" Header="How to build an NSTN sequence">
+                    <Expander Margin="0,8,0,0" Header="{nstn:T Guide_Title}">
                         <StackPanel Margin="0,4,0,0">
-                            <TextBlock FontFamily="Consolas" Text="{Binding GuideTree}" />
+                            <TextBlock FontFamily="Consolas" Text="{nstn:T Guide_Tree}" />
                             <TextBlock
                                 Margin="0,6,0,0"
-                                Text="{Binding GuideRules}"
+                                Text="{nstn:T Guide_Rules}"
                                 TextWrapping="Wrap" />
                         </StackPanel>
                     </Expander>
@@ -550,7 +551,7 @@
                         Padding="8,2"
                         HorizontalAlignment="Left"
                         Command="{Binding RecalculateCommand}"
-                        Content="Recalculate" />
+                        Content="{nstn:T Common_Recalculate}" />
                 </StackPanel>
             </view:SequenceBlockView.SequenceItemContent>
         </view:SequenceBlockView>
@@ -559,7 +560,7 @@
     <DataTemplate x:Key="NINA.Plugin.Nstn.Instructions.NstnNightInfo_Mini">
         <mini:MiniSequenceItem>
             <mini:MiniSequenceItem.SequenceItemContent>
-                <TextBlock VerticalAlignment="Center" Text="NSTN Night Info" />
+                <TextBlock VerticalAlignment="Center" Text="{nstn:T Name_NightInfo}" />
             </mini:MiniSequenceItem.SequenceItemContent>
         </mini:MiniSequenceItem>
     </DataTemplate>

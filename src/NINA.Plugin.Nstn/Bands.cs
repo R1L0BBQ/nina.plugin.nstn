@@ -1,22 +1,62 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Nstn.Core;
 
 namespace NINA.Plugin.Nstn {
 
+    /// <summary>
+    /// An entry of a selector. The selectors keep one list instance each (a ComboBox
+    /// handed a new list resets its selection), so the label is read when shown and
+    /// announced again when the language changes - also in the closed ComboBox.
+    /// The lists are static, so subscribing to the static event leaks nothing.
+    /// </summary>
+    public abstract class LocalizedChoice : INotifyPropertyChanged {
+
+        protected LocalizedChoice() {
+            Text.Changed += (_, _) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
+        }
+
+        public abstract string Label { get; }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+    }
+
     /// <summary>One entry of the band selector in the condition.</summary>
-    public sealed record BandChoice(string Key, string Label);
+    public sealed class BandChoice : LocalizedChoice {
+
+        public BandChoice(string key) {
+            Key = key;
+        }
+
+        public string Key { get; }
+
+        public override string Label => BandNames.Long(Key);
+    }
 
     /// <summary>One entry of the filter selector: a catalog filter, or "custom" with an empty name.</summary>
-    public sealed record PresetChoice(string Name, string Label);
+    public sealed class PresetChoice : LocalizedChoice {
+
+        private readonly Func<string> label;
+
+        public PresetChoice(string name, Func<string> label) {
+            Name = name;
+            this.label = label;
+        }
+
+        public string Name { get; }
+
+        public override string Label => label();
+    }
 
     public static class Presets {
 
         public static IReadOnlyList<PresetChoice> All { get; } =
-            new[] { new PresetChoice(string.Empty, "Custom: band and bandwidth by hand") }
-                .Concat(FilterCatalog.All.Select(f => new PresetChoice(f.Name, $"{(f.Kind == FilterKind.Duo ? "Duo" : "Set")} · {f.Name}")))
+            new[] { new PresetChoice(string.Empty, () => Text.T("Preset_Custom")) }
+                .Concat(FilterCatalog.All.Select(f => new PresetChoice(f.Name,
+                    () => f.Kind == FilterKind.Duo ? Text.T("Preset_Duo", f.Name) : Text.T("Preset_Set", f.Name))))
                 .ToList();
     }
 
@@ -26,11 +66,11 @@ namespace NINA.Plugin.Nstn {
         public const string Broadband = "RGB";
 
         public static IReadOnlyList<BandChoice> All { get; } = new[] {
-            new BandChoice(Broadband, "L / RGB (broadband)"),
-            new BandChoice("Ha", "H-alpha 656 nm"),
-            new BandChoice("OIII", "O III 501 nm"),
-            new BandChoice("SII", "S II 672 nm"),
-            new BandChoice("Hb", "H-beta 486 nm"),
+            new BandChoice(Broadband),
+            new BandChoice("Ha"),
+            new BandChoice("OIII"),
+            new BandChoice("SII"),
+            new BandChoice("Hb"),
         };
 
         /// <summary>The emission lines alone, for a filter that is not broadband.</summary>
@@ -53,14 +93,7 @@ namespace NINA.Plugin.Nstn {
         public static string Normalize(string key) =>
             All.Any(b => string.Equals(b.Key, key, StringComparison.Ordinal)) ? key : DefaultKey;
 
-        public static string ShortLabel(string key) => key switch {
-            Broadband => "L/RGB",
-            "Ha" => "H-alpha",
-            "OIII" => "O III",
-            "SII" => "S II",
-            "Hb" => "H-beta",
-            _ => key,
-        };
+        public static string ShortLabel(string key) => BandNames.Short(key);
 
         public static EvalFilter ToFilter(string key, double bandwidthNm) =>
             key == Broadband

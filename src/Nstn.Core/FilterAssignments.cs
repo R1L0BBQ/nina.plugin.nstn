@@ -35,8 +35,8 @@ namespace Nstn.Core {
         /// <summary>Readable form for the options page and the condition, e.g. "O III 6 nm (Askar D1 …)".</summary>
         public string Describe() {
             var band = IsBroadband
-                ? "broadband"
-                : $"{Line} {BandwidthNm.ToString("0.#", CultureInfo.InvariantCulture)} nm";
+                ? Text.T("Assign_Broadband")
+                : BandNames.WithBandwidth(Line, BandwidthNm);
             return Preset.Length > 0 ? $"{band} ({Preset})" : band;
         }
     }

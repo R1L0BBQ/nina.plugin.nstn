@@ -39,7 +39,7 @@ namespace NINA.Plugin.Nstn.Conditions {
     [ExportMetadata("Category", "NSTN")]
     [Export(typeof(ISequenceCondition))]
     [JsonObject(MemberSerialization.OptIn)]
-    public class NstnWindowCondition : SequenceCondition, IValidatable {
+    public class NstnWindowCondition : SequenceCondition, IValidatable, IFollowsLanguage {
 
         // Display only - the decision itself is always made against the current time.
         private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
@@ -70,6 +70,18 @@ namespace NINA.Plugin.Nstn.Conditions {
         public NstnWindowCondition(IProfileService profileService) {
             this.profileService = profileService;
             ConditionWatchdog = new ConditionWatchdog(RefreshFromWatchdog, RefreshInterval);
+            PluginLanguage.Follow(profileService);
+            PluginLanguage.Register(this, () => Text.T("Name_Condition"), () => Text.T("Desc_Condition"));
+        }
+
+        public void LanguageChanged() {
+            if (Parent != null) {
+                Task.Run(() => Refresh(force: true));
+            }
+            // N.I.N.A.'s SequenceCondition.Name does not notify; the new name is only
+            // shown when the view hears about it.
+            RaisePropertyChanged(nameof(Name));
+            RaisePropertyChanged(nameof(PresetHint));
         }
 
         private NstnWindowCondition(NstnWindowCondition cloneMe) : this(cloneMe.profileService) {
@@ -194,7 +206,7 @@ namespace NINA.Plugin.Nstn.Conditions {
 
         private static readonly IReadOnlyList<PresetChoice> Choices =
             Presets.All.Take(1)
-                .Append(new PresetChoice(BlockFilter, "From this block's filter (Options > Plugins > NSTN)"))
+                .Append(new PresetChoice(BlockFilter, () => Text.T("Preset_BlockFilter")))
                 .Concat(Presets.All.Skip(1))
                 .ToList();
 
@@ -260,7 +272,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                     return string.Empty;
                 }
                 var weakLabel = Bands.ShortLabel(weak.Line);
-                return $"{ShortLabel} opens earlier than {weakLabel} in this duo filter: while only {ShortLabel} is open, the {weakLabel} channel of these frames is already flooded.";
+                return Text.T("Cond_DuoHint", ShortLabel, weakLabel);
             }
         }
 
@@ -292,22 +304,22 @@ namespace NINA.Plugin.Nstn.Conditions {
         /// </summary>
         private void ResolveBlockFilter(List<string> names, NstnOptions options, List<string> found) {
             if (names.Count == 0) {
-                BlockFilterText = "Block filter: none found";
-                found.Add("No Switch Filter or Smart Exposure with a filter in this block: choose the filter here directly.");
+                BlockFilterText = Text.T("Cond_BlockNone");
+                found.Add(Text.T("Cond_IssueBlockNoFilter"));
                 return;
             }
             if (names.Count > 1) {
-                BlockFilterText = $"Block filters: {string.Join(", ", names)}";
-                found.Add($"This block uses several filters ({string.Join(", ", names)}): choose the filter here directly.");
+                BlockFilterText = Text.T("Cond_BlockSeveral", string.Join(", ", names));
+                found.Add(Text.T("Cond_IssueBlockSeveral", string.Join(", ", names)));
                 return;
             }
             var assignment = FilterAssignments.Find(options.Assignments, names[0]);
             if (assignment == null) {
-                BlockFilterText = $"Block filter: {names[0]}, not assigned";
-                found.Add($"Filter '{names[0]}' has no NSTN assignment: Options > Plugins > NSTN, 'Filters of this profile'.");
+                BlockFilterText = Text.T("Cond_BlockUnassigned", names[0]);
+                found.Add(Text.T("Cond_IssueUnassigned", names[0]));
                 return;
             }
-            BlockFilterText = $"Block filter: {names[0]} → {assignment.Describe()}";
+            BlockFilterText = Text.T("Cond_BlockAssigned", names[0], assignment.Describe());
             var width = assignment.IsBroadband ? bandwidthNm : assignment.BandwidthNm;
             if (line != assignment.Line || bandwidthNm != width) {
                 line = assignment.Line;
@@ -475,10 +487,10 @@ namespace NINA.Plugin.Nstn.Conditions {
                     var options = new NstnOptions(profileService);
                     var context = ItemUtility.RetrieveContextCoordinates(Parent);
                     if (context == null) {
-                        found.Add("Place this condition inside a target container: NSTN needs the target's coordinates.");
+                        found.Add(Text.T("Cond_IssueNoTarget"));
                     }
                     if (!options.HasSkyQuality) {
-                        found.Add("Set the site's sky quality (SQM) in Options > Plugins > NSTN.");
+                        found.Add(Text.T("Issue_NoSqm"));
                     }
                     if (blockFilters != null) {
                         ResolveBlockFilter(blockFilters, options, found);
@@ -504,7 +516,7 @@ namespace NINA.Plugin.Nstn.Conditions {
                     }
                 } catch (Exception ex) {
                     Logger.Error(ex);
-                    found.Add($"NSTN calculation failed: {ex.Message}");
+                    found.Add(Text.T("Cond_IssueFailed", ex.Message));
                     forecast = null;
                 }
 
@@ -520,16 +532,14 @@ namespace NINA.Plugin.Nstn.Conditions {
             if (forecast == null) {
                 WindowSummary = string.Empty;
             } else {
-                var night = forecast.NightDate.ToString("d MMM", CultureInfo.InvariantCulture);
+                var night = Text.Date(forecast.NightDate);
                 if (forecast.NeverOpensAtSite) {
-                    WindowSummary = string.Format(CultureInfo.InvariantCulture,
-                        "Never opens at this site: {0} at {1:0.#} nm needs a sky of at least {2:0.00} mag/arcsec², the site has {3:0.00}. Use a narrower filter or lower the narrowband threshold in the plugin options.",
-                        ShortLabel, BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith);
+                    WindowSummary = Text.T("Cond_NeverAtSite", ShortLabel, BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith);
                 } else if (forecast.Segments.Count == 0) {
-                    WindowSummary = $"Tonight ({night}): never open";
+                    WindowSummary = Text.T("Cond_TonightNever", night);
                 } else {
                     var spans = string.Join(", ", forecast.Segments.Select(s => $"{Clock(s.Start)}–{Clock(s.End)}"));
-                    WindowSummary = $"Tonight ({night}): {spans} · {Duration(forecast.OpenMinutes)}";
+                    WindowSummary = Text.T("Cond_Tonight", night, spans, Text.Duration(forecast.OpenMinutes));
                 }
             }
             ShowNow(forecast);
@@ -538,7 +548,7 @@ namespace NINA.Plugin.Nstn.Conditions {
         /// <summary>The part of the display that moves with the clock.</summary>
         private void ShowNow(BandForecast forecast) {
             if (forecast == null) {
-                NowSummary = "No forecast";
+                NowSummary = Text.T("Cond_NoForecast");
                 IsOpenNow = false;
                 return;
             }
@@ -547,21 +557,15 @@ namespace NINA.Plugin.Nstn.Conditions {
             var open = forecast.IsOpenAt(now);
             var change = forecast.NextChangeAfter(now);
             var state = open
-                ? (change == null ? "Open" : $"Open until {Clock(change.Value)}")
-                : (change == null ? "Closed for the rest of the night" : $"Closed, opens {Clock(change.Value)}");
+                ? (change == null ? Text.T("Cond_Open") : Text.T("Cond_OpenUntil", Clock(change.Value)))
+                : (change == null ? Text.T("Cond_ClosedRest") : Text.T("Cond_ClosedOpens", Clock(change.Value)));
             var magnitude = forecast.InBandMagnitudeAt(now);
             NowSummary = magnitude == null
                 ? state
-                : string.Format(CultureInfo.InvariantCulture, "{0} · sky in band {1:0.00}, needs {2:0.00}", state, magnitude.Value, forecast.Threshold);
+                : Text.T("Cond_SkyInBand", state, magnitude.Value, forecast.Threshold);
             IsOpenNow = open;
         }
 
-        private static string Clock(double epochMs) =>
-            NightModel.ToUtcDateTime(epochMs).ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
-
-        private static string Duration(double minutes) {
-            var total = (int)Math.Round(minutes);
-            return total >= 60 ? $"{total / 60} h {total % 60:00} min" : $"{total} min";
-        }
+        private static string Clock(double epochMs) => Text.Clock(NightModel.ToUtcDateTime(epochMs).ToLocalTime());
     }
 }
