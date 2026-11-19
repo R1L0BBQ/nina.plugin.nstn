@@ -458,7 +458,23 @@ Meldung auch für L/RGB „7 nm“ und riet zur Schmalband-Schwelle.
 
 **Angesehen** in der abgeschotteten N.I.N.A. 3.2 mit deinem Profil (deutsch): Zeilen aufgeklappt, alle vier Abschnitte. Das Aufklappen per Klick selbst ist nicht angesehen. Dafür lief eine Zwischenfassung, in der Zeilen und Ablauf schon aufgeklappt starteten, weil sich die Testinstanz nicht anklicken ließ, ohne dir den Fokus zu nehmen.
 
-## Bekannte Grenzen (Stand 0.8.0)
+## 0.8.1 (19.11.2026)
+
+**Schrift der Abschnittsüberschriften und Zweitzeilen lesbar.** In 0.8.0 waren „Für alle Aufnahmen“, „Heute Nacht“, der Zustand jetzt und die Beobachtungszeile auf dunklem Theme schwarz.
+- Ursache: Ein eigener TextBlock-Stil (`NstnPlanHeading`, `NstnPlanSecondary`) ersetzt N.I.N.A.s impliziten Stil `StandardTextBlock` und damit dessen `Foreground = PrimaryBrush`. Ohne eigene Farbe fällt die Schrift auf Schwarz zurück.
+- Die Stile setzen jetzt `Foreground` = `{DynamicResource PrimaryBrush}`. `BasedOn` per `StaticResource` wäre die Alternative, kann aber beim Laden des Plugins scheitern, und das fiele in keinem Test auf.
+- Dieselbe Lücke in `Options.xaml` (Hinweis „keine Filter im Profil“) ist mit behoben.
+- Gemeldet von Marc auf seinem Theme „Persian Faint“ (Schrift #BDC3C7, Hintergrund #263238). Dessen `SecondaryColor` #1D2731 ist fast so dunkel wie der Hintergrund und taugt nicht als Schriftfarbe; Zweitzeilen bleiben `PrimaryBrush` mit 80 % Deckkraft.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 241/241. Neu `XamlTests`: Jeder TextBlock-Stil braucht `BasedOn` oder einen eigenen `Foreground`. Die Gegenprobe ohne die beiden Setter fällt. Ein zweiter Test belegt, dass die Prüfung die Plan-Stile überhaupt sieht |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 144/144 mit Läufen |
+| Abgeschottete N.I.N.A. 3.2 mit Marcs Profil (Persian Faint), Kontrast im Bild gemessen | Überschriften #BDC3C7 auf #263238, 7,4:1, wie normaler N.I.N.A.-Text; Zweitzeilen 5,3:1. Zum Vergleich in 0.8.0 (Marcs Bildschirmfoto): #000000, 1,6:1 |
+
+Beim Ansehen von 0.8.0 war das durchgerutscht, weil nur nach Augenmaß geprüft wurde. Seitdem wird der Kontrast im Bildschirmfoto gemessen.
+
+## Bekannte Grenzen (Stand 0.8.1)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

@@ -11,7 +11,10 @@
     <BooleanToVisibilityConverter x:Key="NstnPlanRowVisibility" />
 
     <!--  A section heading of the plan: semi-bold with a thin line, so the parts stand apart.  -->
+    <!--  A keyed TextBlock style replaces N.I.N.A.'s implicit one, and with it the text colour:  -->
+    <!--  without the PrimaryBrush setter the text falls back to black on the dark theme.  -->
     <Style x:Key="NstnPlanHeading" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Margin" Value="0,0,0,3" />
     </Style>
@@ -22,6 +25,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <Style x:Key="NstnPlanSecondary" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         <Setter Property="Opacity" Value="0.8" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>

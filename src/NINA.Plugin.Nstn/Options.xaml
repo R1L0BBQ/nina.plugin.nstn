@@ -136,6 +136,7 @@
                 TextWrapping="Wrap">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasProfileFilters}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />

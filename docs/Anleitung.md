@@ -10,7 +10,7 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.8.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+Diese Anleitung beschreibt Version 0.8.1. Den **NSTN-Filterplan** gibt es seit 0.7.0,
 alle anderen Teile seit 0.6.0.
 
 ## Inhalt

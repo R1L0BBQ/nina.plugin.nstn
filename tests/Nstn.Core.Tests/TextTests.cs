@@ -25,7 +25,7 @@ namespace Nstn.Core.Tests {
         private static readonly Regex CodeKey = new Regex(@"Text\.T\(\s*""([A-Za-z0-9_]+)""");
         private static readonly Regex XamlKey = new Regex(@"\{nstn:T\s+([A-Za-z0-9_]+)\s*\}");
 
-        private static string RepositoryRoot() {
+        internal static string RepositoryRoot() {
             var directory = new DirectoryInfo(AppContext.BaseDirectory);
             while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "src", "Nstn.Core"))) {
                 directory = directory.Parent;
