@@ -29,8 +29,10 @@
   </ItemGroup>
 
   <!-- The plugin folder NINA loads from holds exactly three files: this assembly,
-       the night model and Astronomy Engine. Everything else NINA brings itself. -->
-  <Target Name="StagePlugin" AfterTargets="Build">
+       the night model and Astronomy Engine. Everything else NINA brings itself.
+       Only build.ps1 stages (-p:NstnStage=true): a build that merely references the plugin,
+       like the checks program, must not replace what the installer ships. -->
+  <Target Name="StagePlugin" AfterTargets="Build" Condition="'$(NstnStage)' == 'true'">
     <PropertyGroup>
       <PluginStage>$(MSBuildThisFileDirectory)..\..\dist\NSTN\</PluginStage>
     </PropertyGroup>

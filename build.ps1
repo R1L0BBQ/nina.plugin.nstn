@@ -8,7 +8,9 @@
       1. Goldtests des Nachtmodells (Nstn.Core.Tests)
       2. Release-Build des Plugins -> dist\NSTN\ (genau drei DLLs)
       3. dist\NINA.Plugin.Nstn-<Version>.zip mit dem Ordner NSTN\
-    Das ZIP wird nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\ entpackt.
+         (wird nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\ entpackt)
+      4. dist\NSTN-Installer-<Version>.zip zum Weitergeben (installer\Pack-Installer.ps1)
+    Danach tests\Run-NinaChecks.ps1: es prüft genau die Dateien aus dist\NSTN.
 
 .PARAMETER SkipTests
     Nur bauen. Für schnelle Oberflächen-Iterationen; vor jeder Weitergabe nicht verwenden.
@@ -30,7 +32,8 @@ function Invoke-Sdk([string]$command) {
 if (-not $SkipTests) {
     Invoke-Sdk 'dotnet test tests/Nstn.Core.Tests/Nstn.Core.Tests.csproj -c Release --nologo -v q'
 }
-Invoke-Sdk 'dotnet build src/NINA.Plugin.Nstn/NINA.Plugin.Nstn.csproj -c Release --nologo -v q'
+# Nur dieser Build legt dist\NSTN an; tests\Run-NinaChecks.ps1 prüft genau diese Dateien.
+Invoke-Sdk 'dotnet build src/NINA.Plugin.Nstn/NINA.Plugin.Nstn.csproj -c Release --nologo -v q -p:NstnStage=true'
 
 # Version aus der Assembly-Metadatenzeile lesen, nicht doppelt pflegen.
 $assemblyInfo = Get-Content -LiteralPath (Join-Path $root 'src\NINA.Plugin.Nstn\Properties\AssemblyInfo.cs') -Raw -Encoding UTF8
@@ -49,3 +52,6 @@ $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant
 Write-Host "Plugin: $zip"
 Write-Host "SHA-256: $hash"
 $files | ForEach-Object { Write-Host ("  {0,-28} {1,8:N0} Bytes" -f $_.Name, $_.Length) }
+
+# Der Installer zum Weitergeben (installer\): dist\NSTN-Installer-<Version>.zip.
+& (Join-Path $root 'installer\Pack-Installer.ps1') -Root $root

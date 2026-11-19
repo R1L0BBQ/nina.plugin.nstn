@@ -1,0 +1,41 @@
+NSTN - Narrowband Saves The Night, Plugin für N.I.N.A. 3.2.0.9001
+=================================================================
+
+Installieren
+  1. N.I.N.A. schließen.
+  2. Dieses ZIP vollständig entpacken (nicht aus dem ZIP heraus starten).
+  3. Install-NSTN.cmd doppelklicken.
+  4. N.I.N.A. starten. Unter Plugins > Installiert steht
+     "NSTN – Narrowband Saves The Night".
+  5. Beim ersten Mal: Optionen > Plugins > NSTN, Himmelsqualität des
+     Standorts (SQM) eintragen.
+
+Der Installer
+  - braucht keine Administratorrechte und installiert für den angemeldeten
+    Benutzer nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN,
+  - prüft die Prüfsummen des Pakets (SHA256SUMS.txt) vor und nach dem
+    Kopieren,
+  - sichert eine vorhandene NSTN-Version nach
+    %LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>,
+  - lässt die NSTN-Einstellungen im N.I.N.A.-Profil unverändert.
+
+Zurück zu einer älteren Version
+  Den gewünschten Ordner aus NSTN-Sicherung bei geschlossener N.I.N.A.
+  nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN kopieren (vorher den Inhalt
+  dort löschen).
+
+Entfernen
+  Uninstall-NSTN.cmd doppelklicken (mit Sicherung).
+
+Anderer Benutzer oder anderer Plugin-Ordner
+  N.I.N.A. lädt Plugins aus dem Profil des Windows-Benutzers, der sie
+  startet. Läuft N.I.N.A. unter einem anderen Konto, den Installer als
+  dieses Konto starten. Für einen abweichenden Ordner in einer
+  Eingabeaufforderung im entpackten Ordner:
+    Install-NSTN.cmd -PluginDir "<Plugin-Ordner>\3.0.0\NSTN"
+
+Windows-Hinweis
+  Kommt das ZIP aus dem Internet oder per Mail, fragt Windows beim Start
+  von Install-NSTN.cmd eventuell nach (Sicherheitswarnung oder "Windows
+  hat den PC geschützt"). Am einfachsten vor dem Entpacken im
+  Eigenschaften-Dialog des ZIPs "Zulassen" anhaken.

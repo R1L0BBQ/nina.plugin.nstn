@@ -22,7 +22,8 @@ Goldfixtures geprüft (`tests/Nstn.Core.Tests/golden/`).
 | `src/Nstn.Core` | Nachtmodell, `WindowForecaster`, `PlanSimulator`, `FilterCatalog`, `FilterAssignments`, `NightInfo`, `SequenceCheck`, `Text` + `Strings/*.json` (Übersetzungen) (net8.0, keine NINA-/WPF-Abhängigkeit) |
 | `tests/Nstn.Core.Tests` | Goldtests gegen `night_model.json`, Forecaster-, Simulator-, Katalog-, Night-Info-, Sequenzprüfungs- und Übersetzungstests (xUnit, net10.0) |
 | `src/NINA.Plugin.Nstn` | NINA-Plugin (net8.0-windows, WPF, `NINA.Plugin` 3.2.0.9001) |
-| `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` an |
+| `build.ps1` | Tests + Build im Docker-SDK-Container, legt `dist\NINA.Plugin.Nstn-<Version>.zip` und `dist\NSTN-Installer-<Version>.zip` an |
+| `installer/` | Installer zum Weitergeben (`Install-NSTN.ps1` für Windows PowerShell 5.1, `.cmd`-Starter, `LIESMICH.txt`) und `Pack-Installer.ps1` |
 | `tests/NINA.Plugin.Nstn.Checks`, `tests/Run-NinaChecks.ps1` | Prüfprogramm gegen die DLLs des installierten N.I.N.A. (Windows) |
 | `tests/NinaTestInstance` | Abnahme in N.I.N.A.: abgeschottete Testinstanz (Startup Hook), Alpaca-Simulatoren im Container, Testordner mit Profilkopie |
 | `docs/Anleitung.md` | Anleitung für Anwender (Deutsch) |
@@ -36,14 +37,39 @@ Voraussetzung: Docker mit `mcr.microsoft.com/dotnet/sdk:10.0`. Kein lokales .NET
 ```
 
 Ergebnis: `dist\NSTN\` mit genau drei DLLs (`NINA.Plugin.Nstn.dll`, `Nstn.Core.dll`,
-`astronomy.dll`) und das ZIP darum.
+`astronomy.dll`), das ZIP darum und der Installer `dist\NSTN-Installer-<Version>.zip`.
+Danach `tests\Run-NinaChecks.ps1`: es prüft genau diese drei Dateien.
+
+Nur `build.ps1` schreibt `dist\NSTN` (`-p:NstnStage=true`). Bis 0.11.1 tat das jeder Build des
+Plugin-Projekts, auch der des Prüfprogramms, und zwei Builds derselben Quelle ergeben andere
+Bytes (Zeitstempel, MVID, PDB-ID). Das ZIP aus `build.ps1` trug dann andere DLLs als die geprüften.
+
+### Installer
+
+`dist\NSTN-Installer-<Version>.zip` ist für andere Rechner gedacht: entpacken, N.I.N.A. schließen,
+`Install-NSTN.cmd` doppelklicken. Er läuft mit dem Windows PowerShell 5.1 jedes Windows 10/11,
+ohne Administratorrechte, und installiert für den angemeldeten Benutzer nach
+`%LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN`.
+
+- **Vorher:** bricht ab, wenn N.I.N.A. läuft oder eine Datei nicht zu `SHA256SUMS.txt` passt;
+  nennt die installierte N.I.N.A.-Version und warnt unter 3.2.0.9001.
+- **Sicherung:** eine vorhandene Version geht nach `%LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>`,
+  außerhalb von `Plugins\`, damit N.I.N.A. sie nicht als zweites Plugin lädt.
+- **Danach:** Zielordner enthält genau die Paketdateien, Prüfsummen erneut geprüft, Sperrvermerk aus dem Internet entfernt.
+- **Optionen:** `-Uninstall` (auch `Uninstall-NSTN.cmd`, ebenfalls mit Sicherung), `-PluginDir` für einen anderen Ordner, `-NoPause`.
+- **Kodierung:** `Install-NSTN.ps1` braucht eine BOM, sonst liest Windows PowerShell 5.1 es als ANSI und
+  zerstört die Umlaute; die `.cmd`-Dateien sind reines ASCII. `Pack-Installer.ps1` schreibt beides so.
+- **Aus PowerShell 7 gestartet** erbt `powershell.exe` dessen Modulpfad und findet `Get-FileHash` nicht.
+  Die `.cmd` setzt den Modulpfad zurück, das Skript rechnet die Prüfsummen ohnehin mit .NET.
 
 ### Prüfungen gegen N.I.N.A.
 
 `build.ps1` testet den Rechenkern im Linux-Container. Was N.I.N.A.s eigene Klassen braucht,
 prüft `tests\Run-NinaChecks.ps1` unter Windows gegen die DLLs des installierten
 N.I.N.A. 3.2.0.9001. Dazu gehören Laden und Speichern, Drag & Drop, Vorlagen,
-`Sequencer.Validate` und Läufe mit `SequentialStrategy`, den echten Triggern und Stub-Geräten:
+`Sequencer.Validate` und Läufe mit `SequentialStrategy`, den echten Triggern und Stub-Geräten.
+Geprüft werden die Plugin-Dateien aus `dist\NSTN`, also erst `.\build.ps1`; ist eine der beiden
+eigenen DLLs älter als ihre Quellen, bricht das Skript ab:
 
 ```powershell
 .\tests\Run-NinaChecks.ps1            # alle Prüfungen, etwa 2 Minuten
@@ -588,6 +614,18 @@ Die englischen Texte sind entsprechend nachgezogen.
 - Englische Grundbeschreibung des Filterplans (`ExportMetadata`) gleich `Desc_Plan`.
 
 Geprüft: 263/263 Kerntests, 159/159 NINA-Prüfungen ohne Läufe (nur Texte geändert). Lange Beschreibung aus der gebauten DLL zurückgelesen. In der Testinstanz: Version 0.11.1.0, neue Kurzbeschreibung, Beginn der Beschreibung mit der Liste. Weiter unten ließ sich die Seite per UI Automation nicht scrollen.
+
+## Installer zu 0.11.1 (19.11.2026)
+
+Plugin unverändert. Neu ist `dist\NSTN-Installer-0.11.1.0.zip` für Marcs weitere N.I.N.A.-Instanzen (Abschnitt „Installer“ oben).
+- `build.ps1` packt ihn über `installer\Pack-Installer.ps1`.
+- `tests\Run-NinaChecks.ps1` prüft jetzt die DLLs aus `dist\NSTN` statt eines eigenen Builds. Bisher überschrieb der Build des Prüfprogramms `dist\NSTN` mit anderen Bytes derselben Quelle, sodass das ZIP aus `build.ps1` nicht die geprüften DLLs trug.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 263/263 |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 190/190. DLLs in `dist\NSTN`, im Prüfprogramm und im Installer-ZIP byte-gleich (Plugin `eeb590c0…`); `dist\NSTN` vor und nach dem Lauf gleich. Gegenprobe: `dist\NSTN` älter gestellt als die Quellen, dann bricht das Skript vor dem Prüflauf ab |
+| Installer mit Windows PowerShell 5.1, Wegwerf-`LOCALAPPDATA` | 16/16: Erstinstallation, Aktualisierung mit Sicherung außerhalb von `Plugins\` (fremde Datei entfernt), beschädigtes Paket abgelehnt (Ziel unverändert), laufende N.I.N.A. abgelehnt, Deinstallation mit Sicherung und zweimal, Start aus PowerShell 7 ohne `.cmd`, `.cmd` ohne entpacktes Skript. Gegenprobe ohne BOM: Umlaute zerstört |
 
 ## Bekannte Grenzen (Stand 0.11.1)
 

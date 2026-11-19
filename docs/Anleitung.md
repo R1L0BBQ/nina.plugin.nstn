@@ -40,12 +40,26 @@ alle anderen Teile seit 0.6.0.
 
 ## Installieren
 
+**Mit dem Installer** (`NSTN-Installer-<Version>.zip`, ab 0.11.1):
+
 1. N.I.N.A. beenden.
-2. Aus dem ZIP `NINA.Plugin.Nstn-<Version>.zip` den Ordner `NSTN` nach
-   `%LOCALAPPDATA%\NINA\Plugins\3.0.0\` entpacken. Danach liegen die drei Dateien
-   `NINA.Plugin.Nstn.dll`, `Nstn.Core.dll` und `astronomy.dll` in
-   `…\Plugins\3.0.0\NSTN\`.
+2. Das ZIP vollständig entpacken und im entpackten Ordner `Install-NSTN.cmd` doppelklicken.
+   Keine Administratorrechte nötig; installiert wird für den angemeldeten Windows-Benutzer.
 3. N.I.N.A. starten. Unter *Plugins* steht jetzt „NSTN – Narrowband Saves The Night“.
+
+Der Installer prüft die Prüfsummen des Pakets, bricht bei laufender N.I.N.A. ab und sichert
+eine vorhandene NSTN-Version nach `%LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>`.
+Die NSTN-Einstellungen im Profil bleiben. `Uninstall-NSTN.cmd` entfernt das Plugin, ebenfalls
+mit Sicherung. Zurück zu einer älteren Version: bei geschlossener N.I.N.A. den Inhalt von
+`…\Plugins\3.0.0\NSTN\` durch den gesicherten Ordner ersetzen.
+
+**Von Hand** (`NINA.Plugin.Nstn-<Version>.zip`):
+
+1. N.I.N.A. beenden.
+2. Den Ordner `NSTN` aus dem ZIP nach `%LOCALAPPDATA%\NINA\Plugins\3.0.0\` entpacken.
+   Danach liegen die drei Dateien `NINA.Plugin.Nstn.dll`, `Nstn.Core.dll` und
+   `astronomy.dll` in `…\Plugins\3.0.0\NSTN\`.
+3. N.I.N.A. starten.
 
 > **Hinweis zu N.I.N.A. 3.3:** 3.2 und 3.3 nutzen denselben Plugin-Ordner (`3.0.0`), dieselben
 > Profile und dieselbe Datenbank. Das Setup der 3.3-Nightly ersetzt eine installierte 3.2.

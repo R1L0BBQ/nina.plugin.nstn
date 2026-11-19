@@ -7,7 +7,9 @@
     SequentialStrategy mit den echten Triggern) und laufen deshalb unter Windows.
       1. Prüfprogramm im SDK-Container bauen (self-contained, win-x64)
       2. Die NINA.*.dll des installierten N.I.N.A. darüberkopieren (das NuGet-Paket enthält
-         andere Builds), dazu External\ (NOVAS, SOFA, JPL-Ephemeriden)
+         andere Builds), dazu External\ (NOVAS, SOFA, JPL-Ephemeriden), dazu die drei
+         Plugin-Dateien aus dist\NSTN: geprüft wird genau, was der Installer ausliefert.
+         Vorher .\build.ps1; ist dist\NSTN älter als die Quellen, bricht das Skript ab.
       3. Prüfprogramm starten. N.I.N.A.s Logger, die Datenbank (%LOCALAPPDATA%) und alle
          Ausgaben liegen in einem Wegwerfordner, nie im echten N.I.N.A.-Profil.
     Exit-Code 0 = alle Prüfungen grün. Dauer etwa 2 Minuten, mit -NoRuns etwa 20 Sekunden.
@@ -53,6 +55,23 @@ foreach ($dll in Get-ChildItem -LiteralPath $publish -Filter 'NINA.*.dll' -File)
     if (Test-Path -LiteralPath $installed) { Copy-Item -LiteralPath $installed -Destination $dll.FullName -Force }
 }
 Copy-Item -LiteralPath (Join-Path $NinaDir 'External') -Destination $publish -Recurse -Force
+
+# Geprüft wird, was ausgeliefert wird: die drei Dateien aus dist\NSTN (build.ps1), nicht der
+# eigene Build des Prüfprogramms. Zwei Builds derselben Quelle ergeben andere Bytes.
+$stage = Join-Path $root 'dist\NSTN'
+$shipped = @(Get-ChildItem -LiteralPath $stage -Filter '*.dll' -File -ErrorAction SilentlyContinue)
+if ($shipped.Count -ne 3) { throw 'dist\NSTN fehlt oder ist unvollständig - erst .\build.ps1' }
+foreach ($project in 'NINA.Plugin.Nstn', 'Nstn.Core') {
+    $dll = Get-Item -LiteralPath (Join-Path $stage "$project.dll")
+    $newer = Get-ChildItem -LiteralPath (Join-Path $root "src\$project") -Recurse -File |
+        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.LastWriteTimeUtc -gt $dll.LastWriteTimeUtc } |
+        Select-Object -First 1
+    if ($newer) { throw "dist\NSTN\$project.dll ist älter als $($newer.Name) - erst .\build.ps1" }
+}
+foreach ($dll in $shipped) {
+    Copy-Item -LiteralPath $dll.FullName -Destination $publish -Force
+    Write-Host ("Geprüft: {0,-22} {1}" -f $dll.Name, (Get-FileHash -LiteralPath $dll.FullName -Algorithm SHA256).Hash.ToLowerInvariant())
+}
 
 # Wegwerfordner für alles, was N.I.N.A. und das Prüfprogramm schreiben.
 $scratch = if ($OutDir) { $OutDir } else { Join-Path ([IO.Path]::GetTempPath()) ("nstn-checks-" + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
