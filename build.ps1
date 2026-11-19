@@ -6,7 +6,7 @@
 .DESCRIPTION
     Kein lokales .NET-SDK nötig, nur Docker. Ablauf:
       1. Goldtests des Nachtmodells (Nstn.Core.Tests)
-      2. Release-Build des Plugins -> dist\NSTN\ (genau drei DLLs)
+      2. Release-Build des Plugins -> dist\NSTN\ (genau drei DLLs und THIRD-PARTY-NOTICES.txt)
       3. dist\NINA.Plugin.Nstn-<Version>.zip mit dem Ordner NSTN\
          (wird nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\ entpackt)
       4. dist\NSTN-Installer-<Version>.zip zum Weitergeben (installer\Pack-Installer.ps1)
@@ -41,8 +41,11 @@ if ($assemblyInfo -notmatch 'AssemblyFileVersion\("([0-9.]+)"\)') { throw 'Assem
 $version = $Matches[1]
 
 $stage = Join-Path $root 'dist\NSTN'
-$files = Get-ChildItem -LiteralPath $stage -File
-if ($files.Count -ne 3) { throw "dist\NSTN enthält $($files.Count) statt 3 Dateien" }
+$files = @(Get-ChildItem -LiteralPath $stage -File)
+$dlls = @($files | Where-Object Extension -eq '.dll')
+if ($dlls.Count -ne 3 -or $files.Count -ne 4 -or -not ($files.Name -contains 'THIRD-PARTY-NOTICES.txt')) {
+    throw "dist\NSTN soll drei DLLs und THIRD-PARTY-NOTICES.txt enthalten, enthält: $($files.Name -join ', ')"
+}
 
 $zip = Join-Path $root "dist\NINA.Plugin.Nstn-$version.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip }

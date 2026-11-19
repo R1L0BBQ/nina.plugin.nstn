@@ -37,8 +37,9 @@ Voraussetzung: Docker mit `mcr.microsoft.com/dotnet/sdk:10.0`. Kein lokales .NET
 ```
 
 Ergebnis: `dist\NSTN\` mit genau drei DLLs (`NINA.Plugin.Nstn.dll`, `Nstn.Core.dll`,
-`astronomy.dll`), das ZIP darum und der Installer `dist\NSTN-Installer-<Version>.zip`.
-Danach `tests\Run-NinaChecks.ps1`: es prüft genau diese drei Dateien.
+`astronomy.dll`) und `THIRD-PARTY-NOTICES.txt` (MIT-Lizenz der Astronomy Engine, Quelle
+`src\NINA.Plugin.Nstn\`), das ZIP darum und der Installer `dist\NSTN-Installer-<Version>.zip`.
+Danach `tests\Run-NinaChecks.ps1`: es prüft genau diese drei DLLs.
 
 Nur `build.ps1` schreibt `dist\NSTN` (`-p:NstnStage=true`). Bis 0.11.1 tat das jeder Build des
 Plugin-Projekts, auch der des Prüfprogramms, und zwei Builds derselben Quelle ergeben andere
@@ -620,6 +621,7 @@ Geprüft: 263/263 Kerntests, 159/159 NINA-Prüfungen ohne Läufe (nur Texte geä
 Plugin unverändert. Neu ist `dist\NSTN-Installer-0.11.1.0.zip` für Marcs weitere N.I.N.A.-Instanzen (Abschnitt „Installer“ oben).
 - `build.ps1` packt ihn über `installer\Pack-Installer.ps1`.
 - `tests\Run-NinaChecks.ps1` prüft jetzt die DLLs aus `dist\NSTN` statt eines eigenen Builds. Bisher überschrieb der Build des Prüfprogramms `dist\NSTN` mit anderen Bytes derselben Quelle, sodass das ZIP aus `build.ps1` nicht die geprüften DLLs trug.
+- Nachtrag: `THIRD-PARTY-NOTICES.txt` liegt neben den DLLs (in `dist\NSTN`, beiden ZIPs und im installierten Ordner). Das NuGet-Paket der Astronomy Engine nennt nur „MIT“ und das Copyright, einen Lizenztext liefert es nicht mit; die MIT-Lizenz verlangt aber, dass er jeder Kopie beiliegt.
 
 | Prüfung | Ergebnis |
 |---|---|

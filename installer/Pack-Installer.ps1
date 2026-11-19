@@ -4,7 +4,7 @@
     Packt den NSTN-Installer aus dist\NSTN: dist\NSTN-Installer-<Version>.zip.
 
 .DESCRIPTION
-    Inhalt: die Plugin-Dateien (NSTN\), ihre Prüfsummen (SHA256SUMS.txt), Install-NSTN.ps1,
+    Inhalt: die Plugin-Dateien (NSTN\: drei DLLs und THIRD-PARTY-NOTICES.txt), ihre Prüfsummen (SHA256SUMS.txt), Install-NSTN.ps1,
     Install-NSTN.cmd, Uninstall-NSTN.cmd und LIESMICH.txt. Der Installer läuft mit dem Windows
     PowerShell 5.1 jedes Windows 10/11: das Skript bekommt deshalb eine BOM (ohne liest 5.1 es als
     ANSI und zerstört die Umlaute), alle Textdateien CRLF, die .cmd-Dateien nur ASCII.
@@ -23,6 +23,8 @@ $version = $Matches[1]
 $stage = Join-Path $Root 'dist\NSTN'
 $dlls = @(Get-ChildItem -LiteralPath $stage -Filter '*.dll' -File)
 if ($dlls.Count -ne 3) { throw "dist\NSTN enthält $($dlls.Count) statt 3 DLLs - erst build.ps1" }
+$notice = Join-Path $stage 'THIRD-PARTY-NOTICES.txt'
+if (-not (Test-Path -LiteralPath $notice)) { throw 'dist\NSTN\THIRD-PARTY-NOTICES.txt fehlt - erst build.ps1' }
 $built = (Get-Item -LiteralPath (Join-Path $stage 'NINA.Plugin.Nstn.dll')).VersionInfo.FileVersion
 if ($built -ne $version) { throw "dist\NSTN ist $built, AssemblyInfo sagt $version - erst build.ps1" }
 
@@ -32,6 +34,7 @@ if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -For
 $package = Join-Path $work $name
 New-Item -ItemType Directory -Path (Join-Path $package 'NSTN') -Force | Out-Null
 $dlls | Copy-Item -Destination (Join-Path $package 'NSTN')
+Copy-Item -LiteralPath $notice -Destination (Join-Path $package 'NSTN')
 
 foreach ($file in 'Install-NSTN.ps1', 'Install-NSTN.cmd', 'Uninstall-NSTN.cmd', 'LIESMICH.txt') {
     $text = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $file)) -replace "`r?`n", "`r`n"

@@ -56,17 +56,24 @@ foreach ($dll in Get-ChildItem -LiteralPath $publish -Filter 'NINA.*.dll' -File)
 }
 Copy-Item -LiteralPath (Join-Path $NinaDir 'External') -Destination $publish -Recurse -Force
 
-# Geprüft wird, was ausgeliefert wird: die drei Dateien aus dist\NSTN (build.ps1), nicht der
+# Geprüft wird, was ausgeliefert wird: die drei DLLs aus dist\NSTN (build.ps1), nicht der
 # eigene Build des Prüfprogramms. Zwei Builds derselben Quelle ergeben andere Bytes.
 $stage = Join-Path $root 'dist\NSTN'
 $shipped = @(Get-ChildItem -LiteralPath $stage -Filter '*.dll' -File -ErrorAction SilentlyContinue)
 if ($shipped.Count -ne 3) { throw 'dist\NSTN fehlt oder ist unvollständig - erst .\build.ps1' }
 foreach ($project in 'NINA.Plugin.Nstn', 'Nstn.Core') {
     $dll = Get-Item -LiteralPath (Join-Path $stage "$project.dll")
+    # .txt geht nicht in die DLL (THIRD-PARTY-NOTICES.txt), ein neuerer Stand baut sie nicht neu.
     $newer = Get-ChildItem -LiteralPath (Join-Path $root "src\$project") -Recurse -File |
-        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.LastWriteTimeUtc -gt $dll.LastWriteTimeUtc } |
+        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.Extension -ne '.txt' -and $_.LastWriteTimeUtc -gt $dll.LastWriteTimeUtc } |
         Select-Object -First 1
     if ($newer) { throw "dist\NSTN\$project.dll ist älter als $($newer.Name) - erst .\build.ps1" }
+}
+$notice = 'THIRD-PARTY-NOTICES.txt'
+$stagedNotice = Join-Path $stage $notice
+if (-not (Test-Path -LiteralPath $stagedNotice) -or
+    (Get-FileHash -LiteralPath $stagedNotice).Hash -ne (Get-FileHash -LiteralPath (Join-Path $root "src\NINA.Plugin.Nstn\$notice")).Hash) {
+    throw "dist\NSTN\$notice fehlt oder ist veraltet - erst .\build.ps1"
 }
 foreach ($dll in $shipped) {
     Copy-Item -LiteralPath $dll.FullName -Destination $publish -Force

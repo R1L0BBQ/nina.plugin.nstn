@@ -19,6 +19,10 @@ Der Installer
     %LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>,
   - lässt die NSTN-Einstellungen im N.I.N.A.-Profil unverändert.
 
+Lizenzen
+  NSTN\THIRD-PARTY-NOTICES.txt enthält die Lizenz der mitgelieferten
+  Astronomy Engine (astronomy.dll, MIT). Sie wird mit installiert.
+
 Zurück zu einer älteren Version
   Den gewünschten Ordner aus NSTN-Sicherung bei geschlossener N.I.N.A.
   nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN kopieren (vorher den Inhalt
