@@ -102,13 +102,13 @@ namespace NINA.Plugin.Nstn.Checks {
         }
 
         /// <summary>Runs the plan from <paramref name="startUtc"/> (NSTN's clock) for at most <paramref name="limit"/>.</summary>
-        public static PlanRun Execute(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing) {
+        public static PlanRun Execute(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold = null) {
             var run = new PlanRun();
-            run.Run(outDir, startUtc, limit, roundsPerFilter, imagesMissing);
+            run.Run(outDir, startUtc, limit, roundsPerFilter, imagesMissing, narrowbandThreshold);
             return run;
         }
 
-        private void Run(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing) {
+        private void Run(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold) {
             var profile = Stub.Create<IProfileService>();
             var p = profile.ActiveProfile;
             p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("Askar D1", 0, 0));
@@ -132,6 +132,10 @@ namespace NINA.Plugin.Nstn.Checks {
                 }
                 if (key == "Assignments" && type == typeof(string)) {
                     args[2] = Assignments;
+                    return true;
+                }
+                if (key == "ThresholdNarrowband" && type == typeof(double) && narrowbandThreshold is double threshold) {
+                    args[2] = threshold;
                     return true;
                 }
                 return false;

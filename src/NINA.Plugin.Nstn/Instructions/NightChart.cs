@@ -228,7 +228,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                 ? Text.T("Fact_Dark", string.Join(", ", night.AstronomicalNight.Select(Span)), Text.Duration(night.NightMinutes))
                 : Text.T("Fact_NoAstroNight");
             facts.Add(new ChartFact(Text.T("Fact_Night"),
-                Text.T("Fact_NightText", Text.Date(info.Bundle.NightDate), At(NightEventKind.Sunset), dark, At(NightEventKind.Sunrise)), Logged: true));
+                Text.T("Fact_NightText", Text.Night(info.Bundle.NightDate), At(NightEventKind.Sunset), dark, At(NightEventKind.Sunrise)), Logged: true));
             facts.Add(new ChartFact(Text.T("Fact_Twilight"), Text.T("Fact_TwilightText",
                 At(NightEventKind.CivilDusk), At(NightEventKind.CivilDawn),
                 At(NightEventKind.NauticalDusk), At(NightEventKind.NauticalDawn),
@@ -271,11 +271,12 @@ namespace NINA.Plugin.Nstn.Instructions {
                 var range = Math.Round(maxSeparation) - Math.Round(minSeparation) < 1
                     ? $"{minSeparation:0}°"
                     : $"{minSeparation:0}°–{maxSeparation:0}°";
-                var distance = Text.T("Fact_DistanceText", range, Text.Duration(info.MoonUpWhileUsableMinutes));
-                if (info.DarkestSkyMagnitude is double magnitude) {
-                    distance += " · " + Text.T("Fact_Darkest", magnitude);
-                }
-                facts.Add(new ChartFact(Text.T("Fact_MoonDistance"), distance));
+                facts.Add(new ChartFact(Text.T("Fact_MoonDistance"),
+                    Text.T("Fact_DistanceText", range, Text.Duration(info.MoonUpWhileUsableMinutes))));
+            }
+            // Its own line: appended to the moon distance it read as a property of the moon.
+            if (info.DarkestSkyMagnitude is double magnitude) {
+                facts.Add(new ChartFact(Text.T("Fact_Sky"), Text.T("Fact_Darkest", magnitude)));
             }
 
             var windows = info.Bands.Select((band, b) => {

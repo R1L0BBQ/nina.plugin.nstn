@@ -255,10 +255,11 @@
                         </StackPanel>
                     </Border>
 
-                    <!--  4. Tonight per row, from its block's NSTN condition (updated by the condition itself)  -->
+                    <!--  4. The night per row, from its block's NSTN condition (updated by the condition itself).  -->
+                    <!--  The heading names the night once ("Nacht 19./20. Nov."), the rows only their window.  -->
                     <Border Style="{StaticResource NstnPlanSection}">
                         <StackPanel Orientation="Vertical">
-                            <TextBlock Style="{StaticResource NstnPlanHeading}" Text="{nstn:T Plan_SectionTonight}" />
+                            <TextBlock Style="{StaticResource NstnPlanHeading}" Text="{Binding Waiter.NightTitle}" />
                             <ItemsControl Grid.IsSharedSizeScope="True" ItemsSource="{Binding Windows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -273,7 +274,7 @@
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Parent.Name, Mode=OneWay}" />
                                             <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                <TextBlock Text="{Binding WindowSummary, Mode=OneWay}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding WindowSpan, Mode=OneWay}" TextWrapping="Wrap" />
                                                 <TextBlock Style="{StaticResource NstnPlanSecondary}" Text="{Binding NowSummary, Mode=OneWay}" />
                                             </StackPanel>
                                         </Grid>

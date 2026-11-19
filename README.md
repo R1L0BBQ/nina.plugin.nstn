@@ -311,21 +311,31 @@ sofort, ohne Neustart.
 
 ## Beispiele
 
-`samples/NSTN-LRGB-Ha.json`: **Beispielsequenz zum Teilen**, eine komplette Sequenz mit dem
-NSTN-Filterplan. Laden über *Advanced Sequencer → Load sequence*. Eine komplette Sequenz
-kann keine Vorlage sein, denn N.I.N.A. überspringt Wurzel-Container im Vorlagenordner
-(`TemplateController`). Inhalt:
+`samples/NSTN-LRGB-Ha.json` (englisch) und `samples/NSTN-LRGB-Ha.de.json` (deutsch):
+**Beispielsequenz zum Teilen**, eine komplette Sequenz mit dem NSTN-Filterplan. Laden über
+*Advanced Sequencer → Load sequence*. Eine komplette Sequenz kann keine Vorlage sein, denn
+N.I.N.A. überspringt Wurzel-Container im Vorlagenordner (`TemplateController`). Inhalt:
 
 - **Start:** Kamera auf −10 °C kühlen, entparken.
 - **Ziel:** M 33.
-  - Auslöser: Meridianflip, Dither nach 3 Aufnahmen, AF nach Filterwechsel.
-  - Darin: Hinweis, NSTN Night Info, warten bis zur nautischen Dämmerung und bis 20° Höhe, schwenken und zentrieren, Guiding starten.
-  - Filterplan: L, R, G, B je 5 × 120 s und Ha 5 × 300 s, Runden je Filter 2.
+  - Auslöser: Meridianflip, Dither nach 3 Aufnahmen, **AF nach Zeit (60 min)**.
+  - Darin: Hinweis, NSTN Night Info, warten bis zur nautischen Dämmerung und bis 20° Höhe, schwenken und zentrieren, Hinweis zum Autofokus, **Autofokus**, Guiding starten.
+  - Filterplan: L, R, G, B je 5 × 120 s und Ha 5 × 300 s, Sätze am Stück 2.
 - **Ende:** Guiding stoppen, aufwärmen, parken.
 
-Erzeugt wird die Datei mit N.I.N.A.s eigenem Serializer über `tests\Run-NinaChecks.ps1
--WriteSequence`. Dabei wird geprüft, dass N.I.N.A. sie ohne unbekannte Typen lädt und
-unverändert wieder speichert.
+**Autofokus auf L (19.11.2026, auf Marcs Wunsch):** einmal vor dem Guiding, dann jede
+Stunde. Den Filterwechsel auf L macht N.I.N.A. selbst, wenn im Profil zwei Dinge gesetzt sind:
+der L-Filter als „Autofokus Filter“ und „Filterrad Offsets nutzen“ (Okularauszug). Geprüft an
+N.I.N.A. 3.2.0.9001 selbst: `AutoFocusVM.StartAutoFocus` ruft `SetAutofocusFilter` auf; das
+wechselt nur bei `UseFilterWheelOffsets` auf den AF-Filter. Am Ende wechselt `StartAutoFocus`
+per `ChangeFilter` zurück. Der Filterplan läuft also mit seinem Filter weiter. Ein
+„Filter wechseln“ im Auslöser ginge schief: Der Filterplan wechselt den Filter am Anfang
+eines Blocks, die restlichen Aufnahmen dieses Blocks lägen dann auf L.
+
+Erzeugt werden beide Dateien mit N.I.N.A.s eigenem Serializer über `tests\Run-NinaChecks.ps1
+-WriteSequence`, mit SQM und Filterzuordnungen wie bei einem Nutzer. Dabei wird geprüft, dass
+N.I.N.A. sie ohne unbekannte Typen lädt und unverändert wieder speichert, und dass die
+Sequenzprüfung der Nachtinfo keine Warnung meldet.
 
 `samples/M31-NSTN-Test.json`: kurzer Testlauf für M 31 (3 Durchläufe, je Block höchstens
 2 × 2 s). `samples/M31-NSTN-Plan.json`: eine Nacht im Rundlauf (O III und Hα je 5 × 300 s
@@ -474,7 +484,44 @@ Meldung auch für L/RGB „7 nm“ und riet zur Schmalband-Schwelle.
 
 Beim Ansehen von 0.8.0 war das durchgerutscht, weil nur nach Augenmaß geprüft wurde. Seitdem wird der Kontrast im Bildschirmfoto gemessen.
 
-## Bekannte Grenzen (Stand 0.8.1)
+## 0.9.0 (19.11.2026)
+
+**Die kommende Nacht nach Sonnenaufgang.** Am 19.11. um 08:58 zeigte der Plan „Heute Nacht (18. Nov.)“ und plante 0 s je Filter. Bis 12 Uhr galt die vergangene Nacht, obwohl sie vorbei war.
+- `WindowForecaster.NightFor`: bis Sonnenaufgang die laufende Nacht, danach die kommende. Ohne Sonnenaufgang (Polarnacht, Mitternachtssonne) bleibt die Mittagsregel.
+- Sonnenaufgang auf dem Zwei-Minuten-Raster des Modells: Die Rasterhöhen enthalten schon die Refraktion, deshalb gilt −0,27° (Sonnenradius), nicht −0,833°. Abweichung zur Astronomy-Engine unter einem Rasterschritt.
+- **Ein Lauf behält seine Nacht.** Die Endebedingung des Filterplans merkt sich die Nacht ihrer ersten Prüfung im Lauf; ist sie vorbei, endet der Plan („Die Nacht 18./19. Nov. ist vorbei.“). Der Warte-Befehl gibt nach Sonnenaufgang ebenso auf. Ohne das würde ein Plan, der bei Sonnenaufgang noch belichtet (etwa mit sehr lockerer Schwelle), bis zum Abend warten, während die Montierung nachführt.
+- Steht die Sonne über dem Horizont, zeigt die Zeile „Sonne über dem Horizont“ statt eines negativen Himmelswerts.
+
+**Texte**, auf Marcs Durchsicht hin:
+
+| Stelle | bisher | jetzt |
+|---|---|---|
+| Feld | Runden je Filter | Sätze am Stück |
+| Abschnitt | Heute Nacht · „Heute Nacht (18. Nov.): 20:26–05:28 · 9 h 02 min“ | Überschrift „Nacht 19./20. Nov.“, je Zeile „offen 20:26–05:28 (9 h 02 min)“ |
+| Zustand | Zu für den Rest der Nacht · Himmel im Band -3,99, nötig 2,40 | Zu bis Nachtende · Himmel im Band 25,2 mag/arcsec², Schwelle 23,1 |
+| Warten | Beobachtet H-Alpha, S II, O III · … | Wartet auf ein Fenster von H-Alpha, S II, O III · … |
+| Nachtplan | Plan ab 08:58: H-Alpha 6 nm 0 s, … · Ende 08:58, kein Fenster öffnet mehr | Geplant ab 18:32 (erste Aufnahme, nicht „jetzt“): … · Ende 05:28: das letzte Fenster schließt; ohne Aufnahmen „Keine Aufnahmen mehr in dieser Nacht.“ |
+| Ablauf | Ha: 5 × 300 s, solange sein NSTN-Fenster offen ist, einmal je Runde | Ha: 5 × 300 s je Runde, nur bei offenem Fenster |
+| Ablauf | Jede Aufnahme: Gain Kamerastandard, Offset Kamerastandard, Binning 1x1. | Gain und Offset der Kamera, Binning 1x1. |
+| Ende | Heute Nacht öffnet kein NSTN-Fenster mehr – fertig. | In dieser Nacht öffnet kein Fenster mehr. |
+| Nachtinfo | Die Nacht für dieses Ziel – kostet beim Ablauf der Sequenz keine Zeit | Die Nacht für dieses Ziel |
+| Nachtinfo | Mondabstand … · Mond davon 5 h 41 min über dem Horizont · dunkelster Himmel … | Mondabstand …, solange das Ziel nutzbar ist; der Mond steht davon 5 h 41 min über dem Horizont. Eigene Zeile „Himmel“ |
+| Optionen | Schwelle Schmalband (im Band) · Standard 23,1 | Schwelle Schmalband (Himmel im Band) · Standard 23,1 · höher heißt: dunklerer Himmel nötig; Warnung unter 18 |
+
+Die englischen Texte sind entsprechend nachgezogen.
+
+**Befund aus Marcs N.I.N.A.:** Aktiv war das Profil „Standard-2026-11-18T13:07:34“ mit Breite 0 und Länge 0, nicht „Standard“ (49,8° N, 6,6° O). Es ist am 18.11. um 13:07 entstanden, als eine zweite N.I.N.A.-Instanz startete (Falle aus den Testläufen, siehe Wissensspeicher). Darin steht die Schmalband-Schwelle 2,4. Daher kamen Sonnenuntergang 18:48 und die gleichen Fenster für Ha, S2 und O3. In der Testinstanz (Kopie dieses Profils, Standort auf Kordel gesetzt) öffnet Hα mit 2,4 schon um 15:54, vor Sonnenuntergang; deshalb warnen die Optionen jetzt unter 18.
+
+**Beispielsequenz** jetzt auch deutsch: `samples/NSTN-LRGB-Ha.de.json` (deutsche Anmerkungen und Namen). Die englische verlangt jetzt 0.9.0.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 244/244. Neu: Sonnenaufgang auf dem Raster gegen die Astronomy-Engine, Nachtwechsel davor/danach/mittags/abends, Polarnacht und Mitternachtssonne behalten die Mittagsregel, Nachtbeschriftung de/en. Gegenprobe mit der alten Mittagsregel: 2 Tests fallen |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 154/154. Neu „Sunrise“: um 08:58 die kommende Nacht in Überschrift, Nachtplan („geplant ab“ der ersten Aufnahme) und Zeilen ohne Tageslicht-Himmelswert; um 14:00 „Sonne über dem Horizont“; Lauf E über Sonnenaufgang (Schwelle 2,4) endet mit „The night of 18/19 Nov is over.“; ein Warte-Befehl kurz vor Sonnenaufgang gibt nach 60 s auf. Gegenprobe ohne Festhalten der Nacht: Lauf E wartet in den Tag (Zeitlimit), der Warte-Befehl wird nach 100 s abgebrochen |
+| `-WriteSequence` | beide Beispielsequenzen laden und speichern byte-gleich, keine unbekannten Typen |
+| Abgeschottete N.I.N.A. 3.2, Kopie von Marcs Arbeitsprofil (Standort auf Kordel gesetzt), 09:30 | „Nacht 19./20. Nov.“, „offen 18:32–04:34 (10 h 02 min) / Zu, öffnet 18:32“, „Sätze am Stück“, „Geplant ab 15:54: H-Alpha 6 nm 12 h 20 min · Ende 04:38: das letzte Fenster schließt“; Nachtinfo mit „Nacht 19./20. Nov.“, Zeile „Himmel“, Diagramm „SQM 21,0“ (Komma: der Punkt aus Marcs Bild ließ sich nicht nachstellen). Überschrift 7,4:1, Zweitzeilen 5,3:1 |
+
+## Bekannte Grenzen (Stand 0.9.0)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

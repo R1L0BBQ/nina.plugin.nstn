@@ -168,7 +168,19 @@ namespace NINA.Plugin.Nstn.Instructions {
             var byBand = result.Blocks
                 .GroupBy(y => BandName(y.Block.Forecast.Band))
                 .Select(g => $"{g.Key} {Duration(g.Sum(y => y.IntegrationSeconds))}");
-            var summary = Text.T("Plan_Summary", Clock(Math.Max(now, result.StartMs)), string.Join(", ", byBand), Clock(result.EndMs), Reason(result.Stop));
+            // "Plan from 08:58: H-alpha 0 s, S II 0 s, O III 0 s · ends 08:58, no window
+            // opens again" said one thing in four parts: nothing is left.
+            string summary;
+            if (result.Blocks.Sum(y => y.Exposures) > 0) {
+                // From the first exposure, not from now: "planned from 09:31" read as if
+                // something happened at 09:31, and the first window opened at 15:54.
+                var first = result.Blocks.SelectMany(y => y.Exposing).Select(i => i.Start).DefaultIfEmpty(result.StartMs).Min();
+                summary = Text.T("Plan_Summary", Clock(Math.Max(now, first)), string.Join(", ", byBand), Clock(result.EndMs), Reason(result.Stop));
+            } else if (result.Stop == PlanStop.NothingOpensAgain) {
+                summary = Text.T("Plan_NothingLeft");
+            } else {
+                summary = Text.T("Plan_NothingBecause", Reason(result.Stop));
+            }
 
             return new NightPlan(true, summary, Clock(axisStart), Clock(axisEnd), rows, string.Join(Environment.NewLine, notes.Distinct()));
         }

@@ -19,7 +19,15 @@ namespace Nstn.Core {
         double Threshold,
         double MinimumSkyBrightness,
         double SqmZenith,
-        SkyResult Sky) {
+        SkyResult Sky,
+        IReadOnlyList<double>? SunAltitude = null) {
+
+        /// <summary>
+        /// The sun's altitude at sunrise and sunset on the model's grid: minus its
+        /// semi-diameter (16′). The grid altitudes already include refraction, so not
+        /// the usual -0.833°, which is the geometric altitude.
+        /// </summary>
+        public const double SunriseAltitudeDeg = -0.2667;
 
         public double OpenMinutes => NightModel.DurationMinutes(Segments);
 
@@ -52,18 +60,33 @@ namespace Nstn.Core {
         /// the shown state.
         /// </summary>
         public SkySample? SampleAt(double epochMs) {
+            var index = IndexAt(epochMs);
+            return index == null ? null : Sky.Samples[index.Value];
+        }
+
+        public double? InBandMagnitudeAt(double epochMs) {
+            var sample = SampleAt(epochMs);
+            return sample == null ? null : NightModel.InBandMagnitude(sample, Band);
+        }
+
+        /// <summary>
+        /// The sun is up: the sky value is then a large negative number that says
+        /// nothing to anyone ("sky in band -3.99, needed 2.40" at nine in the morning).
+        /// </summary>
+        public bool SunUpAt(double epochMs) {
+            var index = IndexAt(epochMs);
+            return index != null && SunAltitude != null && index.Value < SunAltitude.Count
+                && SunAltitude[index.Value] > SunriseAltitudeDeg;
+        }
+
+        private int? IndexAt(double epochMs) {
             var samples = Sky.Samples;
             if (samples.Count == 0 || epochMs < samples[0].T || epochMs > samples[samples.Count - 1].T) {
                 return null;
             }
             var step = NightModel.SampleStepMinutes * 60_000.0;
             var index = (int)Math.Floor((epochMs - samples[0].T) / step);
-            return samples[Math.Clamp(index, 0, samples.Count - 1)];
-        }
-
-        public double? InBandMagnitudeAt(double epochMs) {
-            var sample = SampleAt(epochMs);
-            return sample == null ? null : NightModel.InBandMagnitude(sample, Band);
+            return Math.Clamp(index, 0, samples.Count - 1);
         }
     }
 
@@ -86,6 +109,10 @@ namespace Nstn.Core {
 
         private readonly record struct SkyKey(DateOnly Night, double Lat, double Lon, string Tz, double Ra, double Dec, double Sqm);
 
+        private readonly record struct SunKey(DateOnly Night, double Lat, double Lon, string Tz);
+
+        private readonly Dictionary<SunKey, double?> sunrises = new Dictionary<SunKey, double?>();
+
         /// <summary>
         /// The night a moment belongs to: the local date of the evening before. The
         /// model's 24 hour window runs from local noon to local noon, so 03:00 on
@@ -96,6 +123,67 @@ namespace Nstn.Core {
             var local = TimeZoneInfo.ConvertTimeFromUtc(utc, timezone);
             var date = DateOnly.FromDateTime(local);
             return local.Hour < 12 ? date.AddDays(-1) : date;
+        }
+
+        /// <summary>
+        /// The night to show and to start in: the night of <see cref="NightDateFor"/>
+        /// until the sun rises on its morning, then the coming one. Between sunrise and
+        /// noon the night before is over - shown, it planned "0 s" and called the 18th
+        /// "tonight" on the morning of the 19th. A run keeps the night it started in
+        /// (wait instruction and the filter plan's end condition compare
+        /// <see cref="BandForecast.NightDate"/>), so a plan still busy at sunrise ends
+        /// instead of waiting for the evening.
+        /// </summary>
+        public DateOnly NightFor(DateTime utcMoment, TimeZoneInfo timezone, double latitude, double longitude) {
+            var utc = utcMoment.Kind == DateTimeKind.Utc ? utcMoment : utcMoment.ToUniversalTime();
+            var night = NightDateFor(utc, timezone);
+            if (TimeZoneInfo.ConvertTimeFromUtc(utc, timezone).Hour >= 12) {
+                return night;   // afternoon or evening: the night ahead has this date anyway
+            }
+            var sunrise = SunriseEnding(night, timezone, latitude, longitude);
+            return sunrise is double rise && NightModel.ToEpochMs(utc) >= rise ? night.AddDays(1) : night;
+        }
+
+        /// <summary>
+        /// The sunrise that ends a night, on the night's two minute grid: the first
+        /// sample after the sun's lowest point that is above the horizon again. Null
+        /// in polar day or night - then the noon rule stays.
+        /// </summary>
+        public double? SunriseEnding(DateOnly night, TimeZoneInfo timezone, double latitude, double longitude) {
+            var key = new SunKey(night, Math.Round(latitude, 4), Math.Round(longitude, 4), timezone.Id);
+            lock (gate) {
+                if (sunrises.TryGetValue(key, out var cached)) {
+                    return cached;
+                }
+            }
+
+            var result = NightModel.ComputeNight(latitude, longitude, night, timezone);
+            double? sunrise = null;
+            var altitude = result.SunAltitude;
+            if (altitude.Count > 0) {
+                var lowest = 0;
+                for (var i = 1; i < altitude.Count; i++) {
+                    if (altitude[i] < altitude[lowest]) {
+                        lowest = i;
+                    }
+                }
+                if (altitude[lowest] <= BandForecast.SunriseAltitudeDeg) {
+                    for (var i = lowest + 1; i < altitude.Count; i++) {
+                        if (altitude[i] > BandForecast.SunriseAltitudeDeg) {
+                            sunrise = result.Times[i];
+                            break;
+                        }
+                    }
+                }
+            }
+
+            lock (gate) {
+                if (sunrises.Count >= MaxEntries) {
+                    sunrises.Clear();
+                }
+                sunrises[key] = sunrise;
+            }
+            return sunrise;
         }
 
         public BandForecast Forecast(
@@ -109,16 +197,17 @@ namespace Nstn.Core {
             EvalFilter band,
             WindowSettings settings) {
 
-            var night = NightDateFor(utcMoment, timezone);
-            var sky = Night(night, timezone, latitude, longitude, raDeg, decDeg, sqmZenith).Sky;
+            var night = NightFor(utcMoment, timezone, latitude, longitude);
+            var bundle = Night(night, timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
             return new BandForecast(
                 NightDate: night,
                 Band: band,
-                Segments: NightModel.WorthwhileSegments(sky, band, settings),
+                Segments: NightModel.WorthwhileSegments(bundle.Sky, band, settings),
                 Threshold: settings.ThresholdFor(band),
                 MinimumSkyBrightness: NightModel.MinimumSkyBrightness(band, settings),
                 SqmZenith: sqmZenith,
-                Sky: sky);
+                Sky: bundle.Sky,
+                SunAltitude: bundle.Night.SunAltitude);
         }
 
         /// <summary>The window of a band with a filter's own limits (a filter plan row).</summary>
@@ -140,7 +229,7 @@ namespace Nstn.Core {
 
         /// <summary>Sun, moon, target and sky of the night a moment belongs to - shared with the forecasts.</summary>
         public NightBundle Night(DateTime utcMoment, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqmZenith) =>
-            Night(NightDateFor(utcMoment, timezone), timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
+            Night(NightFor(utcMoment, timezone, latitude, longitude), timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
 
         private NightBundle Night(DateOnly night, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqm) {
             // Rounded to well below anything that moves a two minute grid: a target

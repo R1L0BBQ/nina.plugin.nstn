@@ -47,11 +47,15 @@ namespace Nstn.Core.Tests {
             Assert.True(PlanEnd.AnyWindowLeft(forecasts, NightModel.ToEpochMs(evening)));
             Assert.True(PlanEnd.AnyWindowLeft(forecasts, last.Value - 60_000));
             Assert.False(PlanEnd.AnyWindowLeft(forecasts, last.Value));
-            // Later the same night (before local noon) nothing comes back.
-            var morning = new DateTime(2026, 11, 18, 10, 30, 0, DateTimeKind.Utc);
-            var lateForecasts = bands.Select(b => forecaster.Forecast(morning, Berlin, 49.8, 6.6, 10.68, 41.27, 20.9, b, NightModel.DefaultSettings)).ToArray();
+            // Later the same night (dawn, before sunrise) nothing comes back.
+            var dawn = new DateTime(2026, 11, 18, 6, 0, 0, DateTimeKind.Utc);
+            var lateForecasts = bands.Select(b => forecaster.Forecast(dawn, Berlin, 49.8, 6.6, 10.68, 41.27, 20.9, b, NightModel.DefaultSettings)).ToArray();
             Assert.Equal(forecasts[0].NightDate, lateForecasts[0].NightDate);
-            Assert.False(PlanEnd.AnyWindowLeft(lateForecasts, NightModel.ToEpochMs(morning)));
+            Assert.False(PlanEnd.AnyWindowLeft(lateForecasts, NightModel.ToEpochMs(dawn)));
+            // After sunrise the forecasts are the coming night's: a run keeps its own night
+            // (NstnNightLeftCondition, run E of the N.I.N.A. checks), the display moves on.
+            var morning = new DateTime(2026, 11, 18, 10, 30, 0, DateTimeKind.Utc);
+            Assert.Equal(forecasts[0].NightDate.AddDays(1), forecaster.Forecast(morning, Berlin, 49.8, 6.6, 10.68, 41.27, 20.9, bands[0], NightModel.DefaultSettings).NightDate);
         }
     }
 }

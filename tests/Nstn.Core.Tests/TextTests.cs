@@ -184,12 +184,16 @@ namespace Nstn.Core.Tests {
             using (new LanguageScope("de-DE")) {
                 Assert.Equal("Himmel in Zielrichtung 20,7 mag/arcsec²", Text.T("Tip_Sky", 20.71));
                 Assert.Equal("17. Nov.", Text.Date(new DateOnly(2026, 11, 17)));
+                Assert.Equal("18./19. Nov.", Text.Night(new DateOnly(2026, 11, 18)));
+                Assert.Equal("30. Nov./1. Dez.", Text.Night(new DateOnly(2026, 11, 30)));
                 Assert.Equal("7 h 05 min", Text.Duration(425));
                 Assert.Equal("„M 31“", Text.Quote("M 31"));
             }
             using (new LanguageScope("en-GB")) {
                 Assert.Equal("Sky towards the target 20.7 mag/arcsec²", Text.T("Tip_Sky", 20.71));
                 Assert.Equal("17 Nov", Text.Date(new DateOnly(2026, 11, 17)));
+                Assert.Equal("18/19 Nov", Text.Night(new DateOnly(2026, 11, 18)));
+                Assert.Equal("31 Dec/1 Jan", Text.Night(new DateOnly(2026, 12, 31)));
                 Assert.Equal("42 min", Text.Duration(42));
                 Assert.Equal("'M 31'", Text.Quote("M 31"));
             }

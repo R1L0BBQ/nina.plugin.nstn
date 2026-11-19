@@ -59,6 +59,7 @@ namespace NINA.Plugin.Nstn.Conditions {
         private string filterPreset = string.Empty;
         private IList<string> issues = new List<string>();
         private string windowSummary = string.Empty;
+        private string windowSpan = string.Empty;
         private string nowSummary = string.Empty;
         private bool isOpenNow;
         // Survives the loop's ResetProgress on purpose: the log gets one line per
@@ -432,6 +433,18 @@ namespace NINA.Plugin.Nstn.Conditions {
             }
         }
 
+        /// <summary>The window alone, for a table that names the night once: "open 20:26–05:28 (9 h 02 min)".</summary>
+        public string WindowSpan {
+            get => windowSpan;
+            private set {
+                if (windowSpan == value) {
+                    return;
+                }
+                windowSpan = value;
+                RaisePropertyChanged();
+            }
+        }
+
         /// <summary>The state right now and when it changes next.</summary>
         public string NowSummary {
             get => nowSummary;
@@ -587,18 +600,22 @@ namespace NINA.Plugin.Nstn.Conditions {
         private void ShowForecast(BandForecast forecast) {
             if (forecast == null) {
                 WindowSummary = string.Empty;
+                WindowSpan = string.Empty;
             } else {
-                var night = Text.Date(forecast.NightDate);
+                var night = Text.Night(forecast.NightDate);
                 if (forecast.NeverOpensAtSite) {
                     // Broadband keeps its bandwidth field but does not use it, and its own threshold applies.
                     WindowSummary = IsNarrowband
                         ? Text.T("Cond_NeverAtSite", ShortLabel, BandwidthNm, forecast.MinimumSkyBrightness, forecast.SqmZenith)
                         : Text.T("Cond_NeverAtSiteBroadband", ShortLabel, forecast.MinimumSkyBrightness, forecast.SqmZenith);
+                    WindowSpan = WindowSummary;
                 } else if (forecast.Segments.Count == 0) {
                     WindowSummary = Text.T("Cond_TonightNever", night);
+                    WindowSpan = Text.T("Cond_SpanNever");
                 } else {
                     var spans = string.Join(", ", forecast.Segments.Select(s => $"{Clock(s.Start)}–{Clock(s.End)}"));
                     WindowSummary = Text.T("Cond_Tonight", night, spans, Text.Duration(forecast.OpenMinutes));
+                    WindowSpan = Text.T("Cond_Span", spans, Text.Duration(forecast.OpenMinutes));
                 }
             }
             ShowNow(forecast);
@@ -619,9 +636,16 @@ namespace NINA.Plugin.Nstn.Conditions {
                 ? (change == null ? Text.T("Cond_Open") : Text.T("Cond_OpenUntil", Clock(change.Value)))
                 : (change == null ? Text.T("Cond_ClosedRest") : Text.T("Cond_ClosedOpens", Clock(change.Value)));
             var magnitude = forecast.InBandMagnitudeAt(now);
-            NowSummary = magnitude == null
-                ? state
-                : Text.T("Cond_SkyInBand", state, magnitude.Value, forecast.Threshold);
+            if (magnitude == null) {
+                NowSummary = state;
+            } else if (forecast.SunUpAt(now)) {
+                NowSummary = Text.T("Cond_SunUp", state);
+            } else if (!forecast.Band.Broadband) {
+                // Narrowband compares the background inside the passband, not an SQM value.
+                NowSummary = Text.T("Cond_SkyInBand", state, magnitude.Value, forecast.Threshold);
+            } else {
+                NowSummary = Text.T("Cond_Sky", state, magnitude.Value, forecast.Threshold);
+            }
             IsOpenNow = open;
         }
 

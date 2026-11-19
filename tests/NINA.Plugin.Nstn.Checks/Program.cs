@@ -84,11 +84,31 @@ namespace NINA.Plugin.Nstn.Checks {
                 return 0;
             }
             if (args.Length > 2 && args[1] == "write-sequence") {
-                var root = SequenceWriter.WriteShareable(args[2], profile, converter, template);
-                var problems = SequenceWriter.RoundTrip(args[2], profile, root, template);
-                Console.WriteLine(problems.Count == 0 ? "load and save again: identical, no unknown types" : string.Join(Environment.NewLine, problems));
+                // A user's setup: SQM and the filters assigned. The blocks then save their real
+                // bands, and the sequence check below judges the sample, not a bare profile.
+                SetNstnOptions(profile, 21.0,
+                    "[{\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+                    "{\"NinaName\":\"R\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+                    "{\"NinaName\":\"G\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+                    "{\"NinaName\":\"B\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+                    "{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}]");
+                // The English sample at the given path, the German one next to it (.de.json).
+                var failed = false;
+                foreach (var (path, language) in new[] { (args[2], "en-US"), (Path.ChangeExtension(args[2], ".de.json"), "de-DE") }) {
+                    var root = SequenceWriter.WriteShareable(path, profile, converter, template, language);
+                    var problems = SequenceWriter.RoundTrip(path, profile, root, template);
+                    Console.WriteLine(problems.Count == 0 ? $"{Path.GetFileName(path)}: load and save again identical, no unknown types" : string.Join(Environment.NewLine, problems));
+                    // What Night Info's sequence check says about the sample: a warning there is a broken sample.
+                    var target = root.Items.OfType<TargetAreaContainer>().SelectMany(t => t.Items).OfType<DeepSkyObjectContainer>().Single();
+                    var findings = SequenceCheck.Check(SequenceTree.Convert(target),
+                        new SequenceCheckContext(false, null, _ => null, ms => NightModel.ToUtcDateTime(ms).ToLocalTime().ToString("HH:mm")));
+                    foreach (var finding in findings) {
+                        Console.WriteLine($"  sequence check: {finding.Level}: {finding.Message}");
+                    }
+                    failed |= problems.Count > 0 || findings.Any(f => f.Level == FindingLevel.Warning);
+                }
                 Logger.CloseAndFlush();
-                return problems.Count == 0 ? 0 : 1;
+                return failed ? 1 : 0;
             }
             try {
                 CloneChecks();
@@ -101,6 +121,7 @@ namespace NINA.Plugin.Nstn.Checks {
                 PlanFollowsRowsChecks();
                 AssignmentChecks();
                 OwnWindowChecks();
+                SunriseChecks(runs);
                 if (runs) {
                     RunChecks();
                 }
@@ -615,6 +636,101 @@ namespace NINA.Plugin.Nstn.Checks {
             Regex.Match(json, "\\{[^{}]*\"FilterName\": \"" + Regex.Escape(filter) + "\"[^{}]*\\}").Value;
 
         // -------------------------------------------------------------------
+        // Sunrise: the coming night is shown, a run keeps the night it started in
+        // -------------------------------------------------------------------
+
+        private static void SunriseChecks(bool runs) {
+            Console.WriteLine();
+            Console.WriteLine("== Sunrise: the coming night is shown, a run keeps the night it started in ==");
+            var night = new DateOnly(2026, 11, 18);
+            var sunriseMs = WindowForecaster.Shared.SunriseEnding(night, TimeZoneInfo.Local, 49.8, 6.6);
+            Check("Kordel has a sunrise ending the night 18/19 Nov", sunriseMs != null, "none");
+            if (sunriseMs == null) {
+                return;
+            }
+            var sunrise = NightModel.ToUtcDateTime(sunriseMs.Value);
+            Console.WriteLine($"  sunrise on the grid: {sunrise.ToLocalTime():HH:mm:ss}");
+
+            // 08:58 on the 19th, the moment of Marc's screenshot: "tonight (18 Nov)" planned 0 s.
+            // The clock is set first: a forecast computed earlier would be reused for 2 s.
+            NstnClock.RunFrom(Night(8, 58, 0));
+            try {
+                var site = SiteProfile(21.3, new[] { "Ha", "L" },
+                    "[{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}," +
+                    "{\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}]");
+                var dso = TargetM33(site);
+                var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+                plan.Rows.Clear();
+                plan.Rows.Add(new FilterPlanRow { FilterName = "Ha" });
+                plan.Rows.Add(new FilterPlanRow { FilterName = "L", Count = 10, ExposureSeconds = 120 });
+                dso.Add(plan);
+
+                var forecast = WaitForForecast(plan.Windows[0]);
+                Check("08:58, sun up: the windows are those of the coming night 19/20 Nov",
+                    forecast?.NightDate == night.AddDays(1), forecast?.NightDate.ToString() ?? "no forecast");
+                var title = Text.T("Plan_SectionNight", Text.Night(night.AddDays(1)));
+                Check("08:58: the plan's heading names the coming night",
+                    WaitFor(() => plan.Waiter?.NightTitle == title && plan.Waiter.Plan.HasPlan), $"'{plan.Waiter?.NightTitle}', want '{title}'");
+                var summary = plan.Waiter?.Plan.Summary ?? string.Empty;
+                Check("08:58: the night plan plans the coming night instead of 0 s",
+                    summary != Text.T("Plan_NothingLeft") && plan.Waiter.Plan.Rows.Any(r => r.Expected != Text.T("Plan_Nothing")), summary);
+                var opens = plan.Windows.Select(w => w.CurrentForecast()).Where(f => f != null && f.Segments.Count > 0).Select(f => f.Segments[0].Start).DefaultIfEmpty(0).Min();
+                var opensClock = Text.Clock(NightModel.ToUtcDateTime(opens).ToLocalTime());
+                Check($"08:58: planned from the first window ({opensClock}), not from now",
+                    opens > 0 && summary.Contains(opensClock, StringComparison.Ordinal) && !summary.Contains("08:58", StringComparison.Ordinal), summary);
+                Check("08:58: the row says when its window opens, without a sky value of daylight",
+                    plan.Windows.All(w => w.NowSummary.StartsWith(Text.T("Cond_ClosedOpens", "").TrimEnd(), StringComparison.Ordinal) && !w.NowSummary.Contains("mag")),
+                    string.Join(" / ", plan.Windows.Select(w => w.NowSummary)));
+
+                // 14:00: inside the coming night's 24 hours, the sun still up.
+                NstnClock.RunFrom(Night(14, 0, 0));
+                WaitFor(() => plan.Windows[0].CurrentForecast() != null && plan.Windows[0].NowSummary.Contains(Text.T("Cond_SunUp", "").Trim(), StringComparison.Ordinal));
+                Check("14:00: 'sun above the horizon' instead of a sky value", plan.Windows[0].NowSummary.Contains(Text.T("Cond_SunUp", "").Trim(), StringComparison.Ordinal)
+                    && !plan.Windows[0].NowSummary.Contains("mag"), plan.Windows[0].NowSummary);
+            } finally {
+                NstnClock.Reset();
+            }
+
+            if (!runs) {
+                return;
+            }
+
+            // A plan still exposing at sunrise (Marc's narrowband threshold 2.4 keeps H-alpha
+            // open into the day) ends when its night is over instead of waiting for the evening.
+            var e = PlanRun.Execute(Path.Combine(outDir, "run-e"), sunrise.AddSeconds(-20), TimeSpan.FromSeconds(60), roundsPerFilter: 1, imagesMissing: false, narrowbandThreshold: 2.4);
+            e.WriteTimeline(Path.Combine(outDir, "run-e.txt"));
+            Console.WriteLine($"  run E (across sunrise): {e.Captures} exposures, ended after {e.Duration.TotalSeconds:0.0} s: {e.End.Summary}");
+            Check("run E: exposures before sunrise", e.Captures > 0, $"{e.Captures}");
+            Check("run E: at sunrise the plan ends, its night is over (no wait for the evening)",
+                !e.TimedOut && e.End.Summary == Text.T("NightLeft_NightOver", Text.Night(night)), $"timed out {e.TimedOut}: {e.End.Summary}");
+
+            // The waiting instruction alone: begun just before sunrise with nothing left in its
+            // night, it gives up at its first look after sunrise (every minute).
+            NstnClock.RunFrom(sunrise.AddSeconds(-5));
+            try {
+                var site = SiteProfile(21.3, new[] { "Ha" }, "[{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}]");
+                var dso = TargetM33(site);
+                var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+                plan.Rows.Clear();
+                plan.Rows.Add(new FilterPlanRow { FilterName = "Ha" });
+                dso.Add(plan);
+                WaitForForecast(plan.Windows[0]);
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(100));
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var cancelled = false;
+                try {
+                    plan.Waiter.Execute(new Progress<NINA.Core.Model.ApplicationStatus>(_ => { }), cts.Token).GetAwaiter().GetResult();
+                } catch (OperationCanceledException) {
+                    cancelled = true;
+                }
+                Console.WriteLine($"  wait across sunrise: returned after {watch.Elapsed.TotalSeconds:0.0} s, cancelled {cancelled}");
+                Check("wait begun before sunrise ends after sunrise instead of waiting for the evening", !cancelled, $"{watch.Elapsed.TotalSeconds:0} s");
+            } finally {
+                NstnClock.Reset();
+            }
+        }
+
+        // -------------------------------------------------------------------
         // a site for the checks above
         // -------------------------------------------------------------------
 
@@ -627,7 +743,13 @@ namespace NINA.Plugin.Nstn.Checks {
             foreach (var (filter, position) in (filters ?? Array.Empty<string>()).Select((f, i) => (f, i))) {
                 p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo(filter, 0, (short)position));
             }
-            ((Stub)(object)p.PluginSettings).Handler = (method, a) => {
+            SetNstnOptions(site, sqm, assignments);
+            return site;
+        }
+
+        /// <summary>The NSTN options of a stub profile: SQM and the filter assignments.</summary>
+        private static void SetNstnOptions(IProfileService site, double sqm, string assignments) {
+            ((Stub)(object)site.ActiveProfile.PluginSettings).Handler = (method, a) => {
                 if (method.Name != "TryGetValue") {
                     return Stub.NotHandled;
                 }
@@ -643,7 +765,6 @@ namespace NINA.Plugin.Nstn.Checks {
                 }
                 return false;
             };
-            return site;
         }
 
         private static DeepSkyObjectContainer TargetM33(IProfileService site) {
@@ -694,10 +815,11 @@ namespace NINA.Plugin.Nstn.Checks {
             Check("view: the night plan has a row per filter row", a.NightPlan.HasPlan && a.NightPlan.Rows.Select(r => r.Label).SequenceEqual(a.Plan.Rows.Select(r => r.Label)),
                 string.Join(" / ", a.NightPlan.Rows.Select(r => r.Label)));
             Check("view: the plan's end condition is understood (no 'not part of the estimate' note)", !a.NightPlan.Notes.Contains("not part of the estimate") && !a.NightPlan.Notes.Contains("runs once"), a.NightPlan.Notes);
-            Check("view: the night plan ends when no window opens again", a.NightPlan.Summary.EndsWith("no window opens again"), a.NightPlan.Summary);
+            Check("view: the night plan ends when no window opens again", a.NightPlan.Summary.EndsWith(Text.T("Plan_StopNothingOpens"), StringComparison.Ordinal), a.NightPlan.Summary);
             Check("view: H-alpha gets time until 06:10, L/RGB none", a.NightPlan.Rows[1].Expected != a.NightPlan.Rows[2].Expected && a.NightPlan.Rows[2].Expected == Text.T("Plan_Nothing"),
                 string.Join(" / ", a.NightPlan.Rows.Select(r => r.Expected)));
-            Check("view: one window line per row, with tonight's window and the state now", a.WindowsShown.Count == 3 && a.WindowsShown.All(w => w.Contains("Tonight") && (w.Contains("Open") || w.Contains("Closed"))),
+            Check("view: one window line per row, with the night by both dates and the state now",
+                a.WindowsShown.Count == 3 && a.WindowsShown.All(w => w.Contains(Text.Night(new DateOnly(2026, 11, 18)), StringComparison.Ordinal) && (w.Contains("Open") || w.Contains("Closed"))),
                 string.Join(" / ", a.WindowsShown));
             Check("view: the waiting instruction is the plan's first child", ReferenceEquals(a.Plan.Waiter, a.Plan.Items[0]), a.Plan.Waiter?.GetType().Name);
             Check("view: the rows in one line for the imaging tab", a.Plan.RowsText == "Askar D1: 2 × 1 s · Ha: 2 × 1 s · L: 2 × 1 s", a.Plan.RowsText);
@@ -729,7 +851,7 @@ namespace NINA.Plugin.Nstn.Checks {
             var d = PlanRun.Execute(Path.Combine(outDir, "run-d"), Night(6, 9, 40), TimeSpan.FromSeconds(90), roundsPerFilter: 1, imagesMissing: false);
             d.WriteTimeline(Path.Combine(outDir, "run-d.txt"));
             Console.WriteLine($"  run D (end of night): {d.Captures} exposures, ended after {d.Duration.TotalSeconds:0.0} s: {d.End.Summary}");
-            Check("run D: the plan ends by itself after the last window, without a clock time", !d.TimedOut && d.End.Summary.StartsWith("No NSTN window opens again tonight"), d.End.Summary);
+            Check("run D: the plan ends by itself after the last window, without a clock time", !d.TimedOut && d.End.Summary == Text.T("NightLeft_Done"), d.End.Summary);
             Check("run D: only H-alpha was still open", d.Captures > 0 && d.CapturesPerFilter.Keys.All(k => k == "Ha"),
                 string.Join(", ", d.CapturesPerFilter.Select(kv => $"{kv.Key} {kv.Value}")));
         }

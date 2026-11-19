@@ -15,6 +15,7 @@ using NINA.Sequencer;
 using NINA.Sequencer.Conditions;
 using NINA.Sequencer.Container;
 using NINA.Sequencer.SequenceItem;
+using NINA.Sequencer.SequenceItem.Autofocus;
 using NINA.Sequencer.SequenceItem.Camera;
 using NINA.Sequencer.SequenceItem.Connect;
 using NINA.Sequencer.SequenceItem.Guider;
@@ -27,6 +28,7 @@ using NINA.Sequencer.Trigger.Autofocus;
 using NINA.Sequencer.Trigger.Guider;
 using NINA.Sequencer.Trigger.MeridianFlip;
 using NINA.Sequencer.Utility.DateTimeProvider;
+using Nstn.Core;
 
 namespace NINA.Plugin.Nstn.Checks {
 
@@ -99,14 +101,50 @@ namespace NINA.Plugin.Nstn.Checks {
         /// N.I.N.A.'s TemplateController skips root containers.
         ///
         /// Start: cool to -10 °C, unpark. Target M 33 with Meridian Flip, Dither after 3
-        /// exposures and AF after filter change; inside Night Info, wait for nautical dusk
-        /// and 20° altitude (centering needs stars and the target above the horizon),
-        /// center, start guiding, filter plan L/R/G/B 5 × 120 s and Ha 5 × 300 s, 2 rounds per
-        /// filter (halves the AF runs). End: stop guiding, warm, park. Names in English, as
-        /// N.I.N.A.'s plugin loader gives them; N.I.N.A. keeps saved names.
+        /// exposures and AF after time (60 min, on the profile's autofocus filter); inside
+        /// Night Info, wait for nautical dusk and 20° altitude (centering needs stars and the
+        /// target above the horizon), center, autofocus, start guiding, filter plan L/R/G/B
+        /// 5 × 120 s and Ha 5 × 300 s, 2 sets in a row (fewer filter changes). End: stop
+        /// guiding, warm, park. Names in the language written (en-US or de-DE), as N.I.N.A.'s
+        /// plugin loader gives them; N.I.N.A. keeps saved names.
         /// </summary>
-        public static ISequenceRootContainer WriteShareable(string path, IProfileService profile, SequenceJsonConverter converter, NstnFilterPlan template) {
-            Loc.Instance.ReloadLocale("en-US");
+        public static ISequenceRootContainer WriteShareable(string path, IProfileService profile, SequenceJsonConverter converter, NstnFilterPlan template, string language = "en-US") {
+            Loc.Instance.ReloadLocale(language);
+            var textCulture = Text.Culture;
+            Text.Culture = CultureInfo.GetCultureInfo(language);
+            try {
+                return WriteShareable(path, profile, converter, template, Notes[language]);
+            } finally {
+                Text.Culture = textCulture;
+            }
+        }
+
+        /// <summary>The annotations of the sample, per language: Marc loads the German one in a German N.I.N.A.</summary>
+        private static readonly Dictionary<string, (string Start, string Target, string Focus, string End)> Notes = new Dictionary<string, (string, string, string, string)> {
+            ["en-US"] = (
+                "Prepares the equipment. Set the cooling temperature for your camera; connect the equipment before you start the sequence.",
+                "Requires the NSTN plugin 0.9.0 or later and the SQM value of your site in Options > Plugins > NSTN. " +
+                "Set your target here (name search, Framing or Sky Atlas). The filter names in the NSTN filter plan must match " +
+                "the filter wheel list of your profile: pick yours in each row. NSTN Night Info shows the night and checks the setup.",
+                "Autofocus once here, then every hour (trigger 'AF After Time', 60 min). For it to focus on L, two settings of the profile: " +
+                "tick 'Autofocus filter' for L in the filter list (Options > Equipment > Filterwheel) and switch on 'Use filterwheel offsets' " +
+                "(Options > Equipment > Focuser). N.I.N.A. then changes to L for the autofocus and back afterwards; the NSTN filter plan " +
+                "goes on with its own filter. Enter the focus offsets of the other filters relative to L.",
+                "Runs once the filter plan has ended: no NSTN window opens again this night."),
+            ["de-DE"] = (
+                "Bereitet die Ausrüstung vor. Die Kühltemperatur für die eigene Kamera einstellen und die Ausrüstung verbinden, bevor die Sequenz startet.",
+                "Braucht das NSTN-Plugin 0.9.0 oder neuer und den SQM-Wert des Standorts unter Optionen > Plugins > NSTN. " +
+                "Das Ziel hier setzen (Namenssuche, Rahmung oder Sternenatlas). Die Filternamen im NSTN-Filterplan müssen zur " +
+                "Filterradliste des Profils passen: in jeder Zeile den eigenen Filter wählen. Die NSTN-Nachtinfo zeigt die Nacht und prüft den Aufbau.",
+                "Autofokus einmal hier, danach jede Stunde (Auslöser „AF nach Zeit“, 60 min). Damit auf L fokussiert wird, braucht das Profil zwei " +
+                "Einstellungen: in der Filterliste (Optionen > Ausrüstung > Filterrad) bei L „Autofokus Filter“ anhaken und unter Optionen > " +
+                "Ausrüstung > Okularauszug „Filterrad Offsets nutzen“ einschalten. N.I.N.A. wechselt dann für den Autofokus auf L und danach " +
+                "zurück; der NSTN-Filterplan läuft mit seinem Filter weiter. Die Fokus-Offsets der anderen Filter relativ zu L eintragen.",
+                "Läuft, sobald der Filterplan beendet ist: In dieser Nacht öffnet kein NSTN-Fenster mehr."),
+        };
+
+        private static ISequenceRootContainer WriteShareable(string path, IProfileService profile, SequenceJsonConverter converter, NstnFilterPlan template,
+            (string Start, string Target, string Focus, string End) notes) {
             // The plan builds "Switch filter" from the profile's list: a filter wheel with the plan's filters.
             var filters = profile.ActiveProfile.FilterWheelSettings.FilterWheelFilters;
             filters.Clear();
@@ -115,8 +153,7 @@ namespace NINA.Plugin.Nstn.Checks {
             }
 
             var start = Named(new StartAreaContainer());
-            start.Add(Note("Prepares the equipment. Set the cooling temperature for your camera; " +
-                "connect the equipment before you start the sequence."));
+            start.Add(Note(notes.Start));
             var cool = Named(Construct<CoolCamera>(profile));
             cool.Temperature = -10;
             start.Add(cool);
@@ -134,12 +171,18 @@ namespace NINA.Plugin.Nstn.Checks {
             var dither = Named(Construct<DitherAfterExposures>(profile));
             dither.AfterExposures = 3;
             dso.Add(dither);
-            dso.Add(Named(Construct<AutofocusAfterFilterChange>(profile)));
+            // Autofocus every hour on the profile's autofocus filter (L). N.I.N.A. switches to
+            // that filter and back on its own (AutoFocusVM.SetAutofocusFilter, "use filter
+            // wheel offsets"); a "Switch filter" in the trigger would leave the rest of a
+            // filter plan block on L.
+            var autofocus = Named(Construct<AutofocusAfterTimeTrigger>(profile));
+            autofocus.Amount = 60;
+            dso.Add(autofocus);
 
-            dso.Add(Note("Requires the NSTN plugin 0.7.0 or later and the SQM value of your site in Options > Plugins > NSTN. " +
-                "Set your target here (name search, Framing or Sky Atlas). The filter names in the NSTN filter plan must match " +
-                "the filter wheel list of your profile: pick yours in each row. NSTN Night Info shows the night and checks the setup."));
-            dso.Add(Named(new NstnNightInfo(profile)));
+            dso.Add(Note(notes.Target));
+            var info = Named(new NstnNightInfo(profile));
+            info.Name = Text.T("Name_NightInfo");
+            dso.Add(info);
             // A real calculator: with a stub that fails, WaitForTime recurses between UpdateTime and Validate.
             var nauticalDusk = new NauticalDuskProvider(new NighttimeCalculator(profile));
             dso.Add(Named(new WaitForTime(new List<IDateTimeProvider> { nauticalDusk }, nauticalDusk)));
@@ -147,8 +190,12 @@ namespace NINA.Plugin.Nstn.Checks {
             altitude.Data.Offset = 20;
             dso.Add(altitude);
             dso.Add(Named(Construct<Center>(profile)));
+            // Focus once before guiding starts; from then on the trigger above, every hour.
+            dso.Add(Note(notes.Focus));
+            dso.Add(Named(Construct<RunAutofocus>(profile)));
             dso.Add(Named(Construct<StartGuiding>(profile)));
             var plan = (NstnFilterPlan)template.Clone();
+            plan.Name = Text.T("Name_Plan");
             plan.Rows.Clear();
             foreach (var filter in new[] { "L", "R", "G", "B" }) {
                 plan.Rows.Add(new FilterPlanRow { FilterName = filter, Count = 5, ExposureSeconds = 120 });
@@ -161,7 +208,7 @@ namespace NINA.Plugin.Nstn.Checks {
             targets.Add(dso);
 
             var end = Named(new EndAreaContainer());
-            end.Add(Note("Runs once the filter plan has ended: no NSTN window opens again tonight."));
+            end.Add(Note(notes.End));
             end.Add(Named(Construct<StopGuiding>(profile)));
             end.Add(Named(Construct<WarmCamera>(profile)));
             end.Add(Named(Construct<ParkScope>(profile)));

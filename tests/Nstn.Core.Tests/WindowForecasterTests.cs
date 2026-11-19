@@ -103,6 +103,55 @@ namespace Nstn.Core.Tests {
             Assert.Equal(2000.0 / 60_000, forecast.OpenMinutes, 12);
         }
 
+        /// <summary>
+        /// At 08:58 on the 19th the plan showed "tonight (18 Nov)" and planned 0 s: until
+        /// noon the night before counted, although it was over. It now ends at sunrise.
+        /// </summary>
+        [Fact]
+        public void AtSunriseTheComingNightIsMeant() {
+            const double lat = 49.8, lon = 6.6;   // Kordel
+            var night = new DateOnly(2026, 11, 18);
+            var forecaster = new WindowForecaster();
+            var sunrise = forecaster.SunriseEnding(night, Berlin, lat, lon);
+            Assert.NotNull(sunrise);
+
+            // The grid sunrise agrees with the astronomical one (upper limb, refraction) within
+            // a grid step, give or take the half minute two refraction models differ by.
+            var bundle = forecaster.Night(new DateTime(2026, 11, 18, 20, 0, 0, DateTimeKind.Utc), Berlin, lat, lon, 23.46, 30.66, 21.0);
+            var exact = NightInfoBuilder.Build(bundle, Array.Empty<EvalFilter>()).EventMs(NightEventKind.Sunrise);
+            Assert.NotNull(exact);
+            Assert.InRange(sunrise!.Value - exact!.Value, -30_000, NightModel.SampleStepMinutes * 60_000.0 + 30_000);
+
+            DateOnly At(double epochMs) => forecaster.NightFor(NightModel.ToUtcDateTime(epochMs), Berlin, lat, lon);
+            Assert.Equal(night, At(sunrise.Value - 60_000));               // dawn: still the night before
+            Assert.Equal(night.AddDays(1), At(sunrise.Value));             // sun up: the coming night
+            Assert.Equal(night.AddDays(1), At(NightModel.ToEpochMs(new DateTime(2026, 11, 19, 7, 58, 0, DateTimeKind.Utc))));   // 08:58
+            Assert.Equal(night, At(NightModel.ToEpochMs(new DateTime(2026, 11, 18, 23, 0, 0, DateTimeKind.Utc))));              // midnight
+            Assert.Equal(night, At(NightModel.ToEpochMs(new DateTime(2026, 11, 18, 14, 0, 0, DateTimeKind.Utc))));              // afternoon before
+
+            // The forecast follows: in the morning it is the coming night's, the sun counts as up.
+            var morning = new DateTime(2026, 11, 19, 7, 58, 0, DateTimeKind.Utc);
+            var forecast = forecaster.Forecast(morning, Berlin, lat, lon, 23.46, 30.66, 21.0, NightModel.LineFilter("Ha", 7), NightModel.DefaultSettings);
+            Assert.Equal(night.AddDays(1), forecast.NightDate);
+            Assert.True(forecast.NextChangeAfter(NightModel.ToEpochMs(morning)) != null, "the coming night's window opens later");
+            var afternoon = NightModel.ToEpochMs(new DateTime(2026, 11, 19, 13, 0, 0, DateTimeKind.Utc));
+            Assert.True(forecast.SunUpAt(afternoon));
+            Assert.False(forecast.SunUpAt(NightModel.ToEpochMs(new DateTime(2026, 11, 19, 23, 0, 0, DateTimeKind.Utc))));
+        }
+
+        /// <summary>Without a sunrise (polar night or day) the noon rule stays.</summary>
+        [Theory]
+        [InlineData(2026, 12, 15)]   // polar night: the sun never rises
+        [InlineData(2026, 6, 15)]    // midnight sun: it never sets
+        public void WithoutASunriseTheNoonRuleStays(int year, int month, int day) {
+            const double lat = 78.2, lon = 15.6;   // Longyearbyen
+            var night = new DateOnly(year, month, day);
+            var forecaster = new WindowForecaster();
+            Assert.Null(forecaster.SunriseEnding(night, Berlin, lat, lon));
+            var tenInTheMorning = new DateTime(year, month, day + 1, 8, 0, 0, DateTimeKind.Utc);
+            Assert.Equal(night, forecaster.NightFor(tenInTheMorning, Berlin, lat, lon));
+        }
+
         [Fact]
         public void ABrightSiteCanNeverOpenANarrowBand() {
             var oiii = NightModel.LineFilter("OIII", 6);

@@ -92,6 +92,18 @@ namespace Nstn.Core {
         /// <summary>A date as the language writes it, e.g. "17 Nov" or "17. Nov.".</summary>
         public static string Date(DateOnly date) => date.ToString(Text.T("Format_Date"), culture);
 
+        /// <summary>
+        /// A night by both its dates, e.g. "18./19. Nov." or "30 Nov/1 Dec": "tonight
+        /// (18 Nov)" read wrong on the morning of the 19th.
+        /// </summary>
+        public static string Night(DateOnly night) {
+            var morning = night.AddDays(1);
+            if (morning.Month == night.Month) {
+                return Text.T("Format_Night", night, morning);
+            }
+            return Text.T("Format_NightMonths", night, morning);
+        }
+
         /// <summary>A local clock time; 24 hours in every language N.I.N.A. users observe in.</summary>
         public static string Clock(DateTime localTime) => localTime.ToString("HH:mm", CultureInfo.InvariantCulture);
 

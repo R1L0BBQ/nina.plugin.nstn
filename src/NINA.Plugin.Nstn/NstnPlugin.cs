@@ -133,6 +133,7 @@ namespace NINA.Plugin.Nstn {
             set {
                 options.ThresholdBroadband = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(ThresholdWarning));
             }
         }
 
@@ -142,6 +143,26 @@ namespace NINA.Plugin.Nstn {
                 options.ThresholdNarrowband = value;
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(NarrowbandFloorText));
+                RaisePropertyChanged(nameof(ThresholdWarning));
+            }
+        }
+
+        // Below this the sky is dark enough at any site and in any twilight but the
+        // brightest: a narrowband threshold of 2.4 turned every window into "target
+        // above 20°" without anyone noticing.
+        private const double LowestUsualThreshold = 18.0;
+
+        /// <summary>Says so when a threshold is far below any usual value; empty otherwise.</summary>
+        public string ThresholdWarning {
+            get {
+                var lines = new List<string>();
+                if (ThresholdBroadband < LowestUsualThreshold) {
+                    lines.Add(Text.T("Options_ThresholdOdd", Text.T("Options_ThresholdBroadband"), ThresholdBroadband, NightModel.DefaultSettings.ThresholdBroadband));
+                }
+                if (ThresholdNarrowband < LowestUsualThreshold) {
+                    lines.Add(Text.T("Options_ThresholdOdd", Text.T("Options_ThresholdNarrowband"), ThresholdNarrowband, NightModel.DefaultSettings.ThresholdNarrowband));
+                }
+                return string.Join(Environment.NewLine, lines);
             }
         }
 
@@ -182,6 +203,7 @@ namespace NINA.Plugin.Nstn {
             RaisePropertyChanged(nameof(MinimumAltitude));
             RaisePropertyChanged(nameof(OverheadSeconds));
             RaisePropertyChanged(nameof(NarrowbandFloorText));
+            RaisePropertyChanged(nameof(ThresholdWarning));
             WatchFilterList();
             BuildRows();
         }

@@ -10,7 +10,7 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.8.1. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+Diese Anleitung beschreibt Version 0.9.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
 alle anderen Teile seit 0.6.0.
 
 ## Inhalt
@@ -61,11 +61,14 @@ alle anderen Teile seit 0.6.0.
 |---|---|---|
 | Himmelsqualität im Zenit (SQM) | Pflicht. 0 heißt „nicht gesetzt“, dann rechnet NSTN nicht. | – |
 | Schwelle Breitband (L/RGB) | Ein Breitbandfenster öffnet, wenn der Himmel Richtung Ziel dunkler ist als dieser Wert | 20,6 |
-| Schwelle Schmalband (im Band) | dasselbe für Schmalband, gemessen im Durchlassbereich des Filters | 23,1 |
+| Schwelle Schmalband (Himmel im Band) | dasselbe für Schmalband, gemessen im Durchlassbereich des Filters | 23,1 |
 | Mindesthöhe des Ziels | darunter ist jedes Fenster zu | 20° |
 | Nachtplan: Zuschlag je Aufnahme | Download, Speichern, Dithern im Mittel; nur für die Schätzung | 10 s |
 
 Die Schwellen sind kalibriert. Ändere sie nur an sehr hellen Standorten, und dann in kleinen Schritten.
+Beide sind Himmelshelligkeiten in mag/arcsec²: höher heißt, der Himmel muss dunkler sein.
+Unter 18 warnen die Optionen. So niedrig ist der Himmel praktisch immer dunkel genug, und
+das Fenster folgt nur noch der Höhe des Ziels.
 
 ### 2. Filter dieses Profils
 
@@ -130,7 +133,7 @@ Deep Sky Object Instruction Set „NGC 7000“      Auslöser: Meridianflip, Dit
      Filter Askar D1   #  5 × 300 s
      Filter Ha         #  5 × 300 s
      Filter L          # 10 × 120 s
-     Gain -1  Offset -1  Binning 1x1  Runden je Filter 1  Abbruch nach Fehlschlägen in Folge 3
+     Gain -1  Offset -1  Binning 1x1  Sätze am Stück 1  Abbruch nach Fehlschlägen in Folge 3
 ```
 
 Die Auslöser am Ziel greifen auch zwischen den Aufnahmen **innerhalb** des Filterplans,
@@ -157,25 +160,32 @@ Plan startet mit den ersten drei Filtern des Profils, je 5 × 300 s.
 |---|---|
 | Gain, Offset | für jede Aufnahme; −1 = Kamerastandard |
 | Binning | für jede Aufnahme |
-| Runden je Filter | Wie oft ein Filter dran ist, bevor der nächste kommt. **1 = Rundlauf**: jede Runde jeder Filter einmal. Mit **3** belichtet der Plan 3 × hintereinander denselben Filter und wechselt erst dann. Das spart Filterwechsel und vor allem Autofokus-Läufe. |
+| Sätze am Stück | Wie oft die Aufnahmen einer Zeile hintereinander laufen, bevor der nächste Filter kommt. **1 = Rundlauf**: jede Runde jeder Filter einmal. Mit **3** belichtet der Plan 3 × hintereinander denselben Filter (bei 5 × 300 s also 15 Aufnahmen) und wechselt erst dann. Das spart Filterwechsel und vor allem Autofokus-Läufe. Bis 0.8 hieß das Feld „Runden je Filter“. |
 | Abbruch nach Fehlschlägen in Folge | Der Plan endet, wenn so viele Aufnahmen hintereinander scheitern. Standard 3, **0 = nie**. Siehe [Was in der Nacht passiert](#was-in-der-nacht-passiert). |
 
 Der Plan ist in vier Abschnitte gegliedert: **Filter je Runde** (die Zeilen), **Für alle
-Aufnahmen** (die Planwerte), **Ablauf** und **Heute Nacht**. Sie zeigen:
+Aufnahmen** (die Planwerte), **Ablauf** und die **Nacht**. Sie zeigen:
 
 - **Ablauf:** Neben dem Knopf steht immer die Endezeile, also wie lange der Plan läuft, etwa „Läuft, bis das
   letzte Fenster schließt (05:52)“. Der Knopf klappt die Gliederung auf: was aus den Zeilen gebaut
-  wird, zum Beispiel „2. Askar D1: 5 × 300 s, solange sein NSTN-Fenster offen ist, einmal je Runde“.
-- **Heute Nacht**, je Zeile das Fenster heute Nacht und darunter blasser den Zustand jetzt:
-  „Ha: 5 × 300 s – Heute Nacht (18. Nov.): 18:42–21:02, 01:08–06:04 · 7 h 16 min /
-  Zu, öffnet 18:42 · Himmel im Band 5,19, nötig 23,10“.
+  wird, zum Beispiel „2. Askar D1: 5 × 300 s je Runde, nur bei offenem Fenster“.
+- **Nacht 18./19. Nov.:** Die Überschrift nennt die Nacht mit beiden Daten. Je Zeile steht das
+  Fenster, darunter blasser der Zustand jetzt: „Ha: 5 × 300 s – offen 18:42–21:02, 01:08–06:04
+  (7 h 16 min) / Zu, öffnet 18:42 · Himmel im Band 25,2 mag/arcsec², Schwelle 23,1“. Steht die
+  Sonne über dem Horizont, steht dort statt des Himmelswerts „Sonne über dem Horizont“.
+- **Welche Nacht:** bis Sonnenaufgang die laufende, danach schon die kommende. Wer morgens in die
+  Sequenz schaut, sieht den Plan für heute Abend, nicht die vergangene Nacht. Ein laufender Plan
+  behält seine Nacht: Ist er bei Sonnenaufgang noch nicht fertig, endet er mit „Die Nacht
+  18./19. Nov. ist vorbei.“ und wartet nicht bis zum Abend.
 - **Nachtplan:** eine Zeitleiste je Zeile. Blass ist das Fenster, kräftig die geschätzten
-  Belichtungszeiten. Dazu kommen die erwartete Integrationszeit je Filter und das voraussichtliche Ende.
+  Belichtungszeiten. Darüber stehen die erwartete Integrationszeit je Filter und das voraussichtliche
+  Ende, etwa „Geplant ab 18:42: H-Alpha 7 nm 3 h 10 min, … · Ende 06:04: das letzte Fenster
+  schließt“. Ist nichts mehr übrig: „Keine Aufnahmen mehr in dieser Nacht.“
   „Neu berechnen“ aktualisiert sofort, sonst geschieht das alle 20 Sekunden.
 
 > **Autofokus und Rundlauf:** „AF nach Filterwechsel“ fokussiert bei **jedem** Filterwechsel.
 > Im Rundlauf mit drei Filtern sind das sehr viele AF-Läufe. Abhilfe:
-> - „Runden je Filter“ erhöhen (3 statt 1 drittelt die AF-Läufe), oder
+> - „Sätze am Stück“ erhöhen (3 statt 1 drittelt die AF-Läufe), oder
 > - in der Filterliste des Profils einen „Fokus Offset“ je Filter hinterlegen und statt
 >   „AF nach Filterwechsel“ zum Beispiel „AF nach Zeit“ oder „AF nach Temperaturänderung“ nutzen.
 
@@ -215,21 +225,36 @@ der Plan genau wie bisher.
 
 ### Fertige Beispielsequenz
 
-`NSTN-LRGB-Ha.json` ist eine komplette Sequenz zum Laden und Weitergeben. Sie liegt im
-Repository unter `samples/`.
+`NSTN-LRGB-Ha.de.json` (deutsch) und `NSTN-LRGB-Ha.json` (englisch) sind eine komplette Sequenz
+zum Laden und Weitergeben. Sie liegen im Repository unter `samples/`. Die beiden Fassungen
+unterscheiden sich nur in den Anmerkungen und den Namen.
 
 - **Laden:** im *Sequenzer* unter *Advanced Sequencer* das Ordnersymbol „Sequenz laden“.
 - **Inhalt:**
   - Start: Kamera auf −10 °C kühlen, entparken.
-  - Ziel M 33 mit den Auslösern Meridianflip, Dither nach 3 Aufnahmen und AF nach Filterwechsel.
+  - Ziel M 33 mit den Auslösern Meridianflip, Dither nach 3 Aufnahmen und AF nach Zeit (60 min).
   - Im Ziel: NSTN-Nachtinfo, warten bis zur nautischen Dämmerung und bis das Ziel 20° hoch
-    steht, dann schwenken und zentrieren, Guiding starten und der Filterplan: L, R, G, B je
-    5 × 120 s, Ha 5 × 300 s, Runden je Filter 2.
+    steht, dann schwenken und zentrieren, Autofokus, Guiding starten und der Filterplan:
+    L, R, G, B je 5 × 120 s, Ha 5 × 300 s, Sätze am Stück 2.
   - Ende: Guiding stoppen, Kamera aufwärmen, parken.
+- **Autofokus auf L:** einmal vor dem Guiding, danach jede Stunde. Damit N.I.N.A. dafür auf L
+  wechselt, braucht das Profil zwei Einstellungen:
+  1. *Optionen > Ausrüstung > Filterrad:* beim L-Filter „Autofokus Filter“ anhaken.
+  2. *Optionen > Ausrüstung > Okularauszug:* „Filterrad Offsets nutzen“ einschalten.
+
+  N.I.N.A. wechselt dann für jeden Autofokus auf L und danach zurück zum Filter, der gerade
+  belichtet wurde. Der Filterplan läuft also einfach weiter. Damit der Fokus auch für R, G, B
+  und Ha stimmt, trägst du in der Filterliste je Filter den **Fokus-Offset relativ zu L** ein.
+  Ohne die beiden Einstellungen fokussiert N.I.N.A. mit dem Filter, der gerade drin ist.
 - **Danach anpassen:**
-  - Ziel (Namenssuche, Bildausschnitt oder Himmelsatlas);
+  - Ziel (Namenssuche, Rahmung oder Sternenatlas);
   - Kühltemperatur;
   - die Filter in den Zeilen, falls sie im Profil anders heißen. Der Plan meldet das rot.
+
+> **Warum kein „Filter wechseln“ vor dem Autofokus?** Der Filterplan wechselt den Filter am
+> Anfang eines Blocks, nicht vor jeder Aufnahme. Ein Filterwechsel im Auslöser würde die
+> restlichen Aufnahmen dieses Blocks auf L belichten. N.I.N.A.s eigener Autofokus-Filter
+> wechselt dagegen nach dem Autofokus zurück.
 
 Die Wartebefehle vor dem Zentrieren haben einen Grund. Der Plan wartet zwar selbst auf sein
 erstes Fenster, Zentrieren und Guiding laufen aber vorher. Ohne die Wartebefehle würde
@@ -252,13 +277,14 @@ Vorlagenliste ziehen.
 1. **Warten:** Der Plan wartet, bis das erste Fenster eines seiner Filter öffnet. Er wartet
    ohne Last; N.I.N.A. bleibt bedienbar, Abbrechen geht jederzeit.
 2. **Runde für Runde:**
-   - Jede Zeile kommt einmal dran, bei „Runden je Filter“ > 1 entsprechend oft hintereinander.
+   - Jede Zeile kommt einmal dran, bei „Sätze am Stück“ > 1 entsprechend oft hintereinander.
    - Ein Filter, dessen Fenster gerade zu ist, wird übersprungen.
    - Geprüft wird **vor jeder Aufnahme**. Eine laufende Aufnahme wird nie abgebrochen.
 3. **Auslöser:** Meridianflip, Dither und AF vom Ziel-Container greifen zwischen den
    Aufnahmen.
-4. **Ende ohne Uhrzeit:** Öffnet heute Nacht kein Fenster mehr, endet der Plan von selbst.
-   Im Protokoll steht dann „no window left tonight, ending“. Danach macht N.I.N.A. mit dem
+4. **Ende ohne Uhrzeit:** Öffnet in dieser Nacht kein Fenster mehr, endet der Plan von selbst.
+   Im Protokoll steht dann „no window left tonight, ending“. Spätestens bei Sonnenaufgang ist
+   seine Nacht vorbei, dann endet er auch bei einer sehr lockeren Schwelle. Danach macht N.I.N.A. mit dem
    weiter, was im Ziel-Container nach dem Plan steht, oder mit dem Endbereich der Sequenz
    (Parken, Kamera aufwärmen …).
 5. **Ende bei Fehlschlägen:** Scheitern Aufnahmen hintereinander so oft wie unter
@@ -281,7 +307,8 @@ sie schreibt nur eine Zusammenfassung ins Protokoll. Im Sequenzer zeigt sie:
 - **Die Nacht:**
   - Sonne: Untergang und Aufgang, die drei Dämmerungen, Dunkelzeit.
   - Mond: Phase, Auf- und Untergang, mondfreie Dunkelzeit.
-  - Ziel: Kulmination, nutzbare Zeit, Mondabstand, dunkelster Himmel Richtung Ziel.
+  - Ziel: Kulmination, nutzbare Zeit, Mondabstand.
+  - Himmel: der dunkelste Wert Richtung Ziel in dieser Nacht.
   - Die Fenster je Band.
 - **Ein Diagramm:** Höhe von Ziel und Mond, Mondabstand, Himmelshelligkeit mit SQM-Linie und
   die Fenster. Unter der Maus siehst du die Werte je 10 Minuten.
@@ -359,7 +386,7 @@ rechnet je Zeile mit einer Linie und kann das deshalb nicht.
 | Der Plan wartet und wartet | Es ist noch kein Fenster offen. Die Zeile über dem Nachtplan sagt, wann das erste öffnet. |
 | Der Plan endet mitten in der Nacht mit einer Meldung | Mehrere Aufnahmen hintereinander sind gescheitert. Im Protokoll nach „exposures in a row failed“ und den Fehlern davor suchen. Meist ist die Kamera getrennt oder der Bildordner fehlt. |
 | Nachtinfo warnt „… steht in … hinter …“ | Hinter dem Filterplan steht noch ein NSTN-Block oder ein zweiter Plan. Seine Filter als Zeilen in den einen Plan aufnehmen. |
-| Sehr viele Autofokus-Läufe | Siehe [Autofokus und Rundlauf](#die-felder): „Runden je Filter“ erhöhen oder Fokus-Offsets nutzen. |
+| Sehr viele Autofokus-Läufe | Siehe [Autofokus und Rundlauf](#die-felder): „Sätze am Stück“ erhöhen oder Fokus-Offsets nutzen. |
 | Im Protokoll viele Zeilen „skipped“ | N.I.N.A. schreibt je übersprungenem Block einige Zeilen. Das ist normal, wenn Fenster zu sind. |
 | Eine Sequenz mit NSTN wird ohne Plugin geöffnet | N.I.N.A. lädt sie zwar, die NSTN-Teile laufen aber nicht; NSTN-Blöcke werden still übersprungen. Das Plugin muss auf dem Aufnahme-PC installiert sein. |
 

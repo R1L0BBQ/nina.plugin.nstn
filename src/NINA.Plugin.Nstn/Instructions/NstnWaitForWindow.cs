@@ -54,6 +54,8 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         private IList<string> issues = new List<string>();
         private string waitSummary = string.Empty;
+        // "Tonight" until the first evaluation knows which night it is.
+        private string nightTitle = Text.T("Plan_SectionTonight");
         private bool reportedNothingOpensTonight;
         private NightPlan plan = NightPlan.Empty;
 
@@ -99,6 +101,8 @@ namespace NINA.Plugin.Nstn.Instructions {
         internal void RefreshPlanSoon() => Task.Run(RefreshPlan);
 
         private void RefreshPlan() {
+            // Summary and night heading move with the plan (at sunrise to the coming night).
+            Evaluate();
             lock (planGate) {
                 NightPlan next;
                 try {
@@ -136,6 +140,18 @@ namespace NINA.Plugin.Nstn.Instructions {
             }
         }
 
+        /// <summary>Which night the windows are for, "Night of 18/19 Nov" - the filter plan's heading.</summary>
+        public string NightTitle {
+            get => nightTitle;
+            private set {
+                if (nightTitle == value) {
+                    return;
+                }
+                nightTitle = value;
+                RaisePropertyChanged();
+            }
+        }
+
         public override void AfterParentChanged() {
             base.AfterParentChanged();
             if (ItemUtility.IsInRootContainer(Parent)) {
@@ -159,12 +175,23 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token) {
             reportedNothingOpensTonight = false;
+            // The night this wait belongs to. The forecasts move on to the coming night
+            // at sunrise; a wait begun in the night before must not then wait all day.
+            DateOnly? night = null;
             while (true) {
                 token.ThrowIfCancellationRequested();
                 var state = Evaluate();
                 if (state.Watched == 0) {
                     Logger.Warning($"{nameof(NstnWaitForWindow)}: no NSTN condition in the blocks of this instruction set, not waiting");
                     return;
+                }
+                if (state.Night is DateOnly current) {
+                    if (night == null) {
+                        night = current;
+                    } else if (current != night) {
+                        Logger.Info($"{nameof(NstnWaitForWindow)}: the night of {night:yyyy-MM-dd} is over, not waiting for the next one");
+                        return;
+                    }
                 }
                 if (state.AnyOpen) {
                     return;
@@ -176,7 +203,7 @@ namespace NINA.Plugin.Nstn.Instructions {
                 } else {
                     // Nothing opens again this night. The enclosing loop's own end
                     // condition (dawn, altitude, ...) interrupts this wait; until then
-                    // keep checking, the next night starts at local noon.
+                    // keep checking - at sunrise the night is over and the wait ends.
                     if (!reportedNothingOpensTonight) {
                         reportedNothingOpensTonight = true;
                         Logger.Info($"{nameof(NstnWaitForWindow)}: no NSTN window opens again tonight, waiting for the enclosing loop to end");
@@ -204,7 +231,7 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         // -------------------------------------------------------------------
 
-        private readonly record struct WaitState(int Watched, bool AnyOpen, double? NextOpeningMs, string Status);
+        private readonly record struct WaitState(int Watched, bool AnyOpen, double? NextOpeningMs, string Status, DateOnly? Night);
 
         private WaitState Evaluate() {
             var now = Now();
@@ -233,12 +260,15 @@ namespace NINA.Plugin.Nstn.Instructions {
                 status = Text.T("Wait_NothingTonight");
             }
             WaitSummary = watched.Count == 0 ? status : Text.T("Wait_Watches", bands, status);
+            DateOnly? night = usable.Count == 0 ? null : usable[0].Forecast.NightDate;
+            NightTitle = night is DateOnly date ? Text.T("Plan_SectionNight", Text.Night(date)) : Text.T("Plan_SectionTonight");
 
             return new WaitState(
                 Watched: watched.Count,
                 AnyOpen: open.Count > 0,
                 NextOpeningMs: open.Count > 0 ? null : next.Opening,
-                Status: status);
+                Status: status,
+                Night: night);
         }
 
         /// <summary>

@@ -333,7 +333,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                             ? Text.T("Plan_OutlineRowOnce", i + 2, r.Label)
                             : Text.T("Plan_OutlineRowRepeat", i + 2, r.Label, roundsPerFilter))
                     + (r.Limits.IsNone ? string.Empty : " · " + r.LimitsText)));
-                lines.Add(Text.T("Plan_OutlineSettings", CameraValue(gain), CameraValue(offset), binning.Name));
+                lines.Add(SettingsLine());
                 lines.Add(Text.T("Plan_OutlineEnd"));
                 if (stopAfterFailures > 0) {
                     lines.Add(Text.T("Plan_OutlineStop", stopAfterFailures));
@@ -342,8 +342,19 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             }
         }
 
-        private static string CameraValue(int value) =>
-            value == -1 ? Text.T("Plan_CameraDefault") : value.ToString(Text.Culture);
+        /// <summary>"Camera gain and offset, binning 1x1." rather than "gain camera default, offset camera default".</summary>
+        private string SettingsLine() {
+            if (gain == -1 && offset == -1) {
+                return Text.T("Plan_SettingsCamera", binning.Name);
+            }
+            if (offset == -1) {
+                return Text.T("Plan_SettingsCameraOffset", gain, binning.Name);
+            }
+            if (gain == -1) {
+                return Text.T("Plan_SettingsCameraGain", offset, binning.Name);
+            }
+            return Text.T("Plan_OutlineSettings", gain, offset, binning.Name);
+        }
 
         /// <summary>The rows in one line, for the mini sequencer of the imaging tab.</summary>
         public string RowsText => string.Join(" · ", Rows.Select(r => r.Label));
