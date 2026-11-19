@@ -170,14 +170,19 @@
                     </ItemsControl>
 
                     <!--  The chart: three curve panels, one row per band, the hour axis.  -->
+                    <!--  The rows span all three columns. Their summary ("74 % beleuchtet") can be wider than  -->
+                    <!--  the right column; WPF then spreads the excess over every spanned column, the fixed ones  -->
+                    <!--  too, and the curves and the hour axis moved right of the bars (10 px = 20 min on  -->
+                    <!--  19/20 Nov). One shared width for the right column of both keeps 100 / 480 exact.  -->
                     <Grid
                         Margin="0,8,0,0"
                         HorizontalAlignment="Left"
+                        Grid.IsSharedSizeScope="True"
                         Visibility="{Binding Chart.HasChart, Converter={StaticResource NstnPlanVisibility}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="100" />
                             <ColumnDefinition Width="480" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="NstnChartRight" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="100" />
@@ -360,7 +365,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="100" />
                                             <ColumnDefinition Width="480" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="NstnChartRight" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
                                             VerticalAlignment="Center"

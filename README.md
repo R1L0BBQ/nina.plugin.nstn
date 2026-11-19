@@ -546,7 +546,22 @@ Die englischen Texte sind entsprechend nachgezogen.
 
 **Grenze:** Wird ein L/RGB-Durchgang vom schließenden Fenster unterbrochen, beginnt der nächste wieder mit L. Bei häufigen Unterbrechungen bekommt L etwas mehr als sein Anteil.
 
-## Bekannte Grenzen (Stand 0.10.0)
+## 0.10.1 (19.11.2026)
+
+**Nachtinfo: Balken und Zeitachse lagen gegeneinander verschoben.** Marc sah das Hα-Fenster im Diagramm ab etwa 23:40, laut Text und Plan öffnete es um 00:02.
+- Die Fenster selbst waren richtig berechnet; falsch war nur die Lage der Balken.
+- Gemessen in der Testinstanz: Höhe, Mondabstand, Himmel und Stundenachse lagen bei x = 444–924, die Balkenzeilen bei 434–913. 10 px sind bei dieser Achse etwa 20 Minuten.
+- Ursache, ohne N.I.N.A. nachgestellt (WPF-Raster 100 / 480 / Auto): Die Balkenzeilen überspannen alle drei Spalten. Ist ihre Zusammenfassung („74 % beleuchtet“, „10 h 02 min“) breiter als die rechte Spalte, verteilt WPF den Überschuss auf alle überspannten Spalten, auch die festen (106,8 / 486,8 statt 100 / 480). Die 480-px-Diagramme lagen dann mittig in der breiteren Spalte. Mit längeren Texten wären es bis zu 63 px gewesen.
+- Korrektur: Die rechte Spalte von Diagrammraster und Balkenzeilen teilt sich eine Breite (`SharedSizeGroup`, `Grid.IsSharedSizeScope`). Nachgestellt: 100 / 480 in allen Fällen. In N.I.N.A. gemessen: alles bei 434–913.
+- Neuer Test `XamlTests.ASpanOverFixedColumnsKeepsThemFixed`: Ein Element über feste Spalten und eine Auto-Spalte braucht eine gemeinsame Breitengruppe, auch in seinem Inneren, und einen Bereich, der beide umfasst. Gegenproben ohne Bereich und ohne die Gruppe in den Zeilen schlagen fehl.
+- Der Nachtplan im Filterplan hat dieses Muster nicht: Achse und Zeilen sind getrennte Raster.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 263/263 |
+| `tests\Run-NinaChecks.ps1 -NoRuns` | 145/145 (nur die Vorlage geändert; die Läufe sind unverändert seit 0.10.0, 174/174) |
+
+## Bekannte Grenzen (Stand 0.10.1)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.
