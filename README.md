@@ -579,7 +579,17 @@ Die englischen Texte sind entsprechend nachgezogen.
 
 **Zwischenfall beim Prüfen:** Die Gegenprobe ersetzte zwei Zeilen in derselben Datei. Das Prüfskript sicherte beim zweiten Mal den schon halb mutierten Text, und der Rückbau meldete fälschlich „byte-gleich“. Die Gain-Mutante blieb im Quelltext, ebenso in der Zwischenfassung für das Bild (das Layout betrifft sie nicht). Der Abschlusslauf auf genau diesem Stand fiel rot aus (5 Prüfungen); behoben und erneut geprüft: 190/190. Paket-DLL und geprüfte DLL sind identisch (SHA-256 `4874a817…`). Nichts davon war installiert oder committet.
 
-## Bekannte Grenzen (Stand 0.11.0)
+## 0.11.1 (19.11.2026)
+
+**Plugin-Beschreibung in N.I.N.A. aktualisiert** (Plugins > Installiert > NSTN). Sie stand auf etwa 0.7.
+- Lange Beschreibung: L/RGB-Zeile mit Verhältnis und Namenserkennung, „sets in a row“ statt „rounds per filter“, „Own settings“ mit Fenster und Kamera, Vorrang (übernimmt nach der laufenden Aufnahme, der obere gewinnt), Ende bei Sonnenaufgang und Nacht mit beiden Daten, Standardschwellen mit Warnung.
+- Kurzbeschreibung nennt die L/RGB-Zeile; Schlagwort „LRGB“ ergänzt.
+- Aufbau-Anleitung „The easy way“ (Plugin-Beschreibung und Nachtinfo, de/en) nennt L/RGB und Vorrang; `SequenceGuide.Easy` passend (TextTests vergleicht).
+- Englische Grundbeschreibung des Filterplans (`ExportMetadata`) gleich `Desc_Plan`.
+
+Geprüft: 263/263 Kerntests, 159/159 NINA-Prüfungen ohne Läufe (nur Texte geändert). Lange Beschreibung aus der gebauten DLL zurückgelesen. In der Testinstanz: Version 0.11.1.0, neue Kurzbeschreibung, Beginn der Beschreibung mit der Liste. Weiter unten ließ sich die Seite per UI Automation nicht scrollen.
+
+## Bekannte Grenzen (Stand 0.11.1)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

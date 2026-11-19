@@ -9,7 +9,7 @@ namespace NINA.Plugin.Nstn {
     /// </summary>
     public static class SequenceGuide {
 
-        public const string Easy = @"The easy way: 'NSTN filter plan' builds this pattern from a table - one row per filter (name as in the profile, exposures per round, exposure time) - and ends when no window opens again tonight. The tree and the rules below are for building it by hand.";
+        public const string Easy = @"The easy way: 'NSTN filter plan' builds this pattern from a table - one row per filter (name as in the profile, exposures per round, exposure time), or one row 'L/RGB' for L, R, G and B in a ratio - and ends when no window opens again this night. A row with priority takes over as soon as its window opens. The tree and the rules below are for building it by hand.";
 
         public const string Tree = @"Deep Sky Object Instruction Set   triggers: Meridian Flip, AF After Filter Change, Dither after Exposures
 ├─ NSTN Night Info   shows the night, takes no time

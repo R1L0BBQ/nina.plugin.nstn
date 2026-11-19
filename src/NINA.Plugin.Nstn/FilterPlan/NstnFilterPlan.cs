@@ -50,7 +50,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
     /// No lock of its own (deadlock rule): N.I.N.A.'s containers have one static lock.
     /// </summary>
     [ExportMetadata("Name", "NSTN filter plan")]
-    [ExportMetadata("Description", "One row per filter: its name as in the profile, exposures per round and exposure time. Waits for the first NSTN window, then exposes each filter while its window is open, round after round, until no window opens again tonight.")]
+    [ExportMetadata("Description", "One row per filter: its name as in the profile, exposures per round and exposure time. The row 'L/RGB' combines L, R, G and B in a ratio. Waits for the first NSTN window, then exposes each row while its window is open, round after round, until no window opens again this night. Gain, offset, binning and sets in a row apply to the whole plan.")]
     [ExportMetadata("Icon", "FW_NoFill_SVG")]
     [ExportMetadata("Category", "NSTN")]
     [Export(typeof(ISequenceItem))]
