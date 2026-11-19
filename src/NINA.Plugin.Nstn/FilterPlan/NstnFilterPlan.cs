@@ -177,6 +177,9 @@ namespace NINA.Plugin.Nstn.FilterPlan {
 
         public IReadOnlyList<string> FilterNames => ProfileFilters().Select(f => f.Name).ToList();
 
+        /// <summary>The choices of a row: an L/RGB set, then the profile's filters.</summary>
+        public IReadOnlyList<string> RowChoices => new[] { FilterPlanRow.Lrgb }.Concat(FilterNames).ToList();
+
         private static IEnumerable<FilterPlanRow> DefaultRows(IProfileService profileService) {
             var filters = profileService?.ActiveProfile?.FilterWheelSettings?.FilterWheelFilters;
             if (filters == null) {
@@ -402,6 +405,23 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         private FilterInfo ResolveFilter(string name) =>
             ProfileFilters().FirstOrDefault(f => string.Equals(f.Name.Trim(), name?.Trim(), StringComparison.OrdinalIgnoreCase));
 
+        private static readonly char[] LrgbChannels = { 'L', 'R', 'G', 'B' };
+
+        /// <summary>
+        /// The profile's filters of an L/RGB set, found by name ("L", "Lum", "Red", "Baader B" …),
+        /// in the order L, R, G, B; null where the profile has none. A filter the NSTN options
+        /// assign to a narrowband line is never taken.
+        /// </summary>
+        private FilterInfo[] LrgbFilters() {
+            var narrowband = profileService == null
+                ? new HashSet<string>()
+                : new HashSet<string>(new NstnOptions(profileService).Assignments.Where(a => !a.IsBroadband).Select(a => a.NinaName.Trim()),
+                    StringComparer.OrdinalIgnoreCase);
+            return LrgbChannels
+                .Select(channel => ProfileFilters().FirstOrDefault(f => !narrowband.Contains(f.Name.Trim()) && FilterAssignments.LrgbChannel(f.Name) == channel))
+                .ToArray();
+        }
+
         private void Rebuild() {
             if (Status == SequenceEntityStatus.RUNNING) {
                 Logger.Warning($"NSTN filter plan '{Name}': rows changed while running, instructions not rebuilt");
@@ -436,33 +456,76 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         private IEnumerable<FilterPlanRow> RunOrder() => Rows.Where(r => r.Priority).Concat(Rows.Where(r => !r.Priority));
 
         private SequentialContainer BuildBlock(FilterPlanRow row) {
-            var seconds = row.ExposureSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-            var exposure = new TakeExposure(profileService, cameraMediator, imagingMediator, imageSaveMediator, imageHistoryVM) {
-                ExposureTime = row.ExposureSeconds,
-                Gain = gain,
-                Offset = offset,
-                Binning = new BinningMode(binning.X, binning.Y),
-            };
-            var series = new SequentialContainer { Name = $"{row.Count} × {seconds} s" };
-            series.Add(exposure);
-            series.Add(new LoopCondition { Iterations = row.Count });
-
             var block = new SequentialContainer { Name = row.Label };
-            block.Add(new SwitchFilter(profileService, filterWheelMediator) { Filter = ResolveFilter(row.FilterName) });
-            block.Add(series);
-            block.Add(new NstnWindowCondition(profileService) {
-                Name = Text.T("Name_Condition"),
-                FilterPreset = NstnWindowCondition.BlockFilter,
-                ThresholdOffset = row.ThresholdOffset,
-                MinAltitude = row.MinAltitude,
-                NotBefore = row.NotBefore,
-                NotAfter = row.NotAfter,
-            });
+            NstnWindowCondition window;
+            if (row.IsLrgb) {
+                // One block for the set: L, R, G, B one after the other in the ratio, all
+                // judged by the broadband window - a block filter cannot name four filters.
+                var filters = LrgbFilters();
+                var parts = row.RatioParts;
+                for (var i = 0; i < LrgbChannels.Length; i++) {
+                    if (parts[i] > 0) {
+                        block.Add(new SwitchFilter(profileService, filterWheelMediator) { Filter = filters[i] });
+                        block.Add(Series(parts[i], i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds));
+                    }
+                }
+                window = new NstnWindowCondition(profileService) {
+                    FilterPreset = string.Empty,
+                    Line = Bands.Broadband,
+                    BandwidthNm = NightModel.VWidthNm,
+                };
+            } else {
+                block.Add(new SwitchFilter(profileService, filterWheelMediator) { Filter = ResolveFilter(row.FilterName) });
+                block.Add(Series(row.Count, row.ExposureSeconds));
+                window = new NstnWindowCondition(profileService) { FilterPreset = NstnWindowCondition.BlockFilter };
+            }
+            window.Name = Text.T("Name_Condition");
+            window.ThresholdOffset = row.ThresholdOffset;
+            window.MinAltitude = row.MinAltitude;
+            window.NotBefore = row.NotBefore;
+            window.NotAfter = row.NotAfter;
+            block.Add(window);
             // Without an iteration limit a block keeps its window while it is open: priority.
             if (!row.Priority) {
                 block.Add(new LoopCondition { Iterations = roundsPerFilter });
             }
             return block;
+        }
+
+        /// <summary>A series of one filter: Take Exposure with the plan's values, repeated.</summary>
+        private SequentialContainer Series(int count, double exposureSeconds) {
+            var series = new SequentialContainer { Name = $"{count} × {exposureSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s" };
+            series.Add(new TakeExposure(profileService, cameraMediator, imagingMediator, imageSaveMediator, imageHistoryVM) {
+                ExposureTime = exposureSeconds,
+                Gain = gain,
+                Offset = offset,
+                Binning = new BinningMode(binning.X, binning.Y),
+            });
+            series.Add(new LoopCondition { Iterations = count });
+            return series;
+        }
+
+        /// <summary>
+        /// Whether a block must give way now: an open priority block above it takes over
+        /// after the running exposure (the block's NSTN condition asks before every
+        /// exposure). Priority blocks come first, so of two the upper one wins. A block
+        /// without an iteration limit is a priority block (see <see cref="BuildBlock"/>).
+        /// </summary>
+        internal bool MustYield(ISequenceContainer block, double nowMs) {
+            foreach (var other in GetItemsSnapshot().OfType<ISequenceContainer>()) {
+                if (ReferenceEquals(other, block)) {
+                    return false;
+                }
+                var conditions = (other as IConditionable)?.GetConditionsSnapshot();
+                if (conditions == null || conditions.Any(c => c is LoopCondition)) {
+                    continue;
+                }
+                var window = conditions.OfType<NstnWindowCondition>().FirstOrDefault();
+                if (window?.CurrentForecast()?.IsOpenAt(nowMs) == true) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -471,8 +534,18 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         /// </summary>
         public string ExpectedStructure =>
             "Wait" + string.Concat(RunOrder().Select(r =>
-                $" | {ResolveFilter(r.FilterName)?.Name ?? "-"} {r.Count}x{r.ExposureSeconds.ToString("R", CultureInfo.InvariantCulture)}"
-                + Settings(gain, offset, binning, r.Priority ? null : roundsPerFilter) + Window(r.Limits))) + " | End";
+                $" | {ExpectedSeries(r)}" + Settings(gain, offset, binning, r.Priority ? null : roundsPerFilter) + Window(r.Limits))) + " | End";
+
+        /// <summary>"Ha 5x300"; an L/RGB set "LRGB L 3x60 R 1x120 G 1x120 B 1x120".</summary>
+        private string ExpectedSeries(FilterPlanRow row) {
+            if (!row.IsLrgb) {
+                return $"{ResolveFilter(row.FilterName)?.Name ?? "-"} {row.Count}x{row.ExposureSeconds.ToString("R", CultureInfo.InvariantCulture)}";
+            }
+            var filters = LrgbFilters();
+            var parts = row.RatioParts;
+            return "LRGB" + string.Concat(Enumerable.Range(0, LrgbChannels.Length).Where(i => parts[i] > 0).Select(i =>
+                $" {filters[i]?.Name ?? "-"} {parts[i]}x{(i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds).ToString("R", CultureInfo.InvariantCulture)}"));
+        }
 
         /// <summary>"r-" for a block without an iteration limit (priority).</summary>
         private static string Settings(int gain, int offset, BinningMode binning, int? rounds) =>
@@ -495,23 +568,39 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                     var block = (SequentialContainer)item;
                     var inner = block.GetItemsSnapshot().ToList();
                     var gates = block.GetConditionsSnapshot().ToList();
-                    if (inner.Count != 2 || inner[0] is not SwitchFilter switchFilter || inner[1].GetType() != typeof(SequentialContainer)) {
-                        return "?block items";
-                    }
                     // One turn per round with "Loop For Iterations", priority without it.
-                    if (gates.Count is < 1 or > 2 || gates[0] is not NstnWindowCondition window || window.FilterPreset != NstnWindowCondition.BlockFilter
+                    if (gates.Count is < 1 or > 2 || gates[0] is not NstnWindowCondition window
                             || (gates.Count == 2 && gates[1] is not LoopCondition) || block.GetTriggersSnapshot().Count != 0) {
                         return "?block conditions";
                     }
-                    var rounds = gates.Count == 2 ? (LoopCondition)gates[1] : null;
-                    var series = (SequentialContainer)inner[1];
-                    var exposures = series.GetItemsSnapshot().ToList();
-                    var loop = series.GetConditionsSnapshot().ToList();
-                    if (exposures.Count != 1 || exposures[0] is not TakeExposure exposure || loop.Count != 1 || loop[0] is not LoopCondition count) {
-                        return "?series";
+                    // A single filter follows its block's filter; an L/RGB set is judged by the broadband window.
+                    var isSet = string.IsNullOrEmpty(window.FilterPreset) && window.Line == Bands.Broadband;
+                    if (!isSet && window.FilterPreset != NstnWindowCondition.BlockFilter) {
+                        return "?block conditions";
                     }
-                    text.Append($" | {switchFilter.Filter?.Name ?? "-"} {count.Iterations}x{exposure.ExposureTime.ToString("R", CultureInfo.InvariantCulture)}");
-                    text.Append(Settings(exposure.Gain, exposure.Offset, exposure.Binning, rounds?.Iterations));
+                    if (inner.Count == 0 || inner.Count % 2 != 0 || (!isSet && inner.Count != 2) || (isSet && inner.Count > 8)) {
+                        return "?block items";
+                    }
+                    var rounds = gates.Count == 2 ? (LoopCondition)gates[1] : null;
+                    text.Append(isSet ? " | LRGB" : " |");
+                    TakeExposure first = null;
+                    for (var i = 0; i < inner.Count; i += 2) {
+                        if (inner[i] is not SwitchFilter switchFilter || inner[i + 1].GetType() != typeof(SequentialContainer)) {
+                            return "?block items";
+                        }
+                        var series = (SequentialContainer)inner[i + 1];
+                        var exposures = series.GetItemsSnapshot().ToList();
+                        var loop = series.GetConditionsSnapshot().ToList();
+                        if (exposures.Count != 1 || exposures[0] is not TakeExposure exposure || loop.Count != 1 || loop[0] is not LoopCondition count) {
+                            return "?series";
+                        }
+                        first ??= exposure;
+                        if (exposure.Gain != first.Gain || exposure.Offset != first.Offset || !Equals(exposure.Binning, first.Binning)) {
+                            return "?series settings";
+                        }
+                        text.Append($" {switchFilter.Filter?.Name ?? "-"} {count.Iterations}x{exposure.ExposureTime.ToString("R", CultureInfo.InvariantCulture)}");
+                    }
+                    text.Append(Settings(first.Gain, first.Offset, first.Binning, rounds?.Iterations));
                     text.Append(Window(window.Limits));
                 }
                 var own = GetConditionsSnapshot().ToList();
@@ -619,7 +708,15 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                 issues.Add(Text.T("Plan_IssueNoRows"));
             }
             foreach (var row in Rows) {
-                if (row.FilterName.Length == 0) {
+                if (row.IsLrgb) {
+                    var filters = LrgbFilters();
+                    var parts = row.RatioParts;
+                    for (var i = 0; i < LrgbChannels.Length; i++) {
+                        if (parts[i] > 0 && filters[i] == null) {
+                            issues.Add(LrgbFilterMissing(LrgbChannels[i]));
+                        }
+                    }
+                } else if (row.FilterName.Length == 0) {
                     issues.Add(Text.T("Plan_IssueNoFilter"));
                 } else if (ResolveFilter(row.FilterName) == null) {
                     issues.Add(Text.T("Plan_IssueUnknownFilter", row.FilterName));
@@ -636,6 +733,14 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             RaisePropertyChanged(nameof(Issues));
             return distinct.Count == 0;
         }
+
+        /// <summary>Which names NSTN looks for, so the user knows what to call the filter.</summary>
+        private static string LrgbFilterMissing(char channel) => channel switch {
+            'L' => Text.T("Plan_IssueLrgbFilter", "L", "Lum, Luminance, Clear"),
+            'R' => Text.T("Plan_IssueLrgbFilter", "R", "Red, Rot"),
+            'G' => Text.T("Plan_IssueLrgbFilter", "G", "Green, Grün"),
+            _ => Text.T("Plan_IssueLrgbFilter", "B", "Blue, Blau"),
+        };
 
         private static void CollectIssues(ISequenceContainer container, List<string> issues, int depth) {
             if (depth > 8) {

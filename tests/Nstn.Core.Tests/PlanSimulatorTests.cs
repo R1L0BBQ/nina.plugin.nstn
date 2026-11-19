@@ -107,6 +107,41 @@ namespace Nstn.Core.Tests {
             Assert.Equal(0, result.Blocks[0].Exposures);
         }
 
+        /// <summary>
+        /// Marc's night of 19/20 Nov: the L/RGB window opened in the middle of a round and
+        /// closed before the next one, so L/RGB got nothing. A priority row takes over
+        /// after the running exposure. Here P (3:1:1:1, L 60 s, RGB 120 s) opens at 2000
+        /// while B exposes 1500-1800 and 1800-2100; B stops after that exposure, P starts
+        /// at 2100 - not at 3000, when B's set and the round would have ended.
+        /// </summary>
+        [Fact]
+        public void APriorityRowTakesOverAfterTheRunningExposure() {
+            var result = PlanSimulator.Simulate(new[] {
+                new PlanBlock("L/RGB", Window((2000, 4500)), new double[] { 60, 60, 60, 120, 120, 120 }, null, Preempts: true),
+                Block("Ha", Window((0, 10000)), 1, 300, 300, 300, 300, 300),
+                Block("S II", Window((0, 10000)), 1, 300, 300, 300, 300, 300),
+            }, 0, NoOverhead);
+            Assert.Equal(new Interval(1_500_000, 2_100_000), result.Blocks[2].Exposing[0]);
+            Assert.Equal(2_100_000, result.Blocks[0].Exposing[0].Start);
+            // While its window is open nothing else runs; the last exposure started at 4440 runs to 4560.
+            Assert.Equal(new[] { new Interval(2_100_000, 4_560_000) }, result.Blocks[0].Exposing);
+            Assert.DoesNotContain(result.Blocks[1].Exposing.Concat(result.Blocks[2].Exposing), i => i.Start < 4_560_000 && i.End > 2_100_000);
+            Assert.Equal(28, result.Blocks[0].Exposures);
+        }
+
+        /// <summary>Two priority rows open at once: the upper one runs, the lower waits until it closes.</summary>
+        [Fact]
+        public void OfTwoPriorityRowsTheUpperOneWins() {
+            var result = PlanSimulator.Simulate(new[] {
+                new PlanBlock("upper", Window((1000, 3000)), new double[] { 300 }, null, Preempts: true),
+                new PlanBlock("lower", Window((0, 4000)), new double[] { 300 }, null, Preempts: true),
+                Block("rest", Window((0, 5000)), 1, 300),
+            }, 0, NoOverhead);
+            Assert.Equal(new[] { new Interval(1_200_000, 3_000_000) }, result.Blocks[0].Exposing);
+            Assert.Equal(new[] { new Interval(0, 1_200_000), new Interval(3_000_000, 4_200_000) }, result.Blocks[1].Exposing);
+            Assert.True(result.Blocks[2].Exposing.All(i => i.Start >= 4_200_000), string.Join(", ", result.Blocks[2].Exposing));
+        }
+
         [Fact]
         public void TheExposureLimitStopsADegeneratePlan() {
             var result = PlanSimulator.Simulate(new[] { Block("tiny", Window((0, 1e9)), null, 0.001) }, 0, NoOverhead);

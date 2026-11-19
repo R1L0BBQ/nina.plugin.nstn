@@ -103,8 +103,9 @@ namespace NINA.Plugin.Nstn.Checks {
         /// Start: cool to -10 °C, unpark. Target M 33 with Meridian Flip, Dither after 3
         /// exposures and AF after time (60 min, on the profile's autofocus filter); inside
         /// Night Info, wait for nautical dusk and 20° altitude (centering needs stars and the
-        /// target above the horizon), center, autofocus, start guiding, filter plan L/R/G/B
-        /// 5 × 120 s and Ha 5 × 300 s, 2 sets in a row (fewer filter changes). End: stop
+        /// target above the horizon), center, autofocus, start guiding, filter plan with the
+        /// L/RGB row 3:1:1:1 (L 60 s, RGB 120 s) with priority - its broadband window is short
+        /// and goes to it alone - and Ha 5 × 300 s, 2 sets in a row (fewer filter changes). End: stop
         /// guiding, warm, park. Names in the language written (en-US or de-DE), as N.I.N.A.'s
         /// plugin loader gives them; N.I.N.A. keeps saved names.
         /// </summary>
@@ -123,9 +124,11 @@ namespace NINA.Plugin.Nstn.Checks {
         private static readonly Dictionary<string, (string Start, string Target, string Focus, string End)> Notes = new Dictionary<string, (string, string, string, string)> {
             ["en-US"] = (
                 "Prepares the equipment. Set the cooling temperature for your camera; connect the equipment before you start the sequence.",
-                "Requires the NSTN plugin 0.9.0 or later and the SQM value of your site in Options > Plugins > NSTN. " +
+                "Requires the NSTN plugin 0.10.0 or later and the SQM value of your site in Options > Plugins > NSTN. " +
                 "Set your target here (name search, Framing or Sky Atlas). The filter names in the NSTN filter plan must match " +
-                "the filter wheel list of your profile: pick yours in each row. NSTN Night Info shows the night and checks the setup.",
+                "the filter wheel list of your profile: pick yours in each row. The row L/RGB finds L, R, G and B by their names " +
+                "(L, Lum, R, Red …); it has priority, so its short broadband window goes to it alone. " +
+                "NSTN Night Info shows the night and checks the setup.",
                 "Autofocus once here, then every hour (trigger 'AF After Time', 60 min). For it to focus on L, two settings of the profile: " +
                 "tick 'Autofocus filter' for L in the filter list (Options > Equipment > Filterwheel) and switch on 'Use filterwheel offsets' " +
                 "(Options > Equipment > Focuser). N.I.N.A. then changes to L for the autofocus and back afterwards; the NSTN filter plan " +
@@ -133,9 +136,11 @@ namespace NINA.Plugin.Nstn.Checks {
                 "Runs once the filter plan has ended: no NSTN window opens again this night."),
             ["de-DE"] = (
                 "Bereitet die Ausrüstung vor. Die Kühltemperatur für die eigene Kamera einstellen und die Ausrüstung verbinden, bevor die Sequenz startet.",
-                "Braucht das NSTN-Plugin 0.9.0 oder neuer und den SQM-Wert des Standorts unter Optionen > Plugins > NSTN. " +
+                "Braucht das NSTN-Plugin 0.10.0 oder neuer und den SQM-Wert des Standorts unter Optionen > Plugins > NSTN. " +
                 "Das Ziel hier setzen (Namenssuche, Rahmung oder Sternenatlas). Die Filternamen im NSTN-Filterplan müssen zur " +
-                "Filterradliste des Profils passen: in jeder Zeile den eigenen Filter wählen. Die NSTN-Nachtinfo zeigt die Nacht und prüft den Aufbau.",
+                "Filterradliste des Profils passen: in jeder Zeile den eigenen Filter wählen. Die Zeile L/RGB findet L, R, G und B am Namen " +
+                "(L, Lum, R, Rot …); sie hat Vorrang, ihr kurzes Breitband-Fenster gehört also ihr allein. " +
+                "Die NSTN-Nachtinfo zeigt die Nacht und prüft den Aufbau.",
                 "Autofokus einmal hier, danach jede Stunde (Auslöser „AF nach Zeit“, 60 min). Damit auf L fokussiert wird, braucht das Profil zwei " +
                 "Einstellungen: in der Filterliste (Optionen > Ausrüstung > Filterrad) bei L „Autofokus Filter“ anhaken und unter Optionen > " +
                 "Ausrüstung > Okularauszug „Filterrad Offsets nutzen“ einschalten. N.I.N.A. wechselt dann für den Autofokus auf L und danach " +
@@ -197,9 +202,15 @@ namespace NINA.Plugin.Nstn.Checks {
             var plan = (NstnFilterPlan)template.Clone();
             plan.Name = Text.T("Name_Plan");
             plan.Rows.Clear();
-            foreach (var filter in new[] { "L", "R", "G", "B" }) {
-                plan.Rows.Add(new FilterPlanRow { FilterName = filter, Count = 5, ExposureSeconds = 120 });
-            }
+            // L, R, G, B as one row with priority: their broadband window is short and would
+            // otherwise open and close in the middle of a round (Marc's night of 19/20 Nov).
+            plan.Rows.Add(new FilterPlanRow {
+                ExposureSeconds = 60,
+                RgbExposureSeconds = 120,
+                Ratio = "3:1:1:1",
+                FilterName = FilterPlanRow.Lrgb,
+                Priority = true,
+            });
             plan.Rows.Add(new FilterPlanRow { FilterName = "Ha", Count = 5, ExposureSeconds = 300 });
             plan.RoundsPerFilter = 2;
             dso.Add(plan);

@@ -74,6 +74,28 @@ namespace Nstn.Core.Tests {
             Assert.Equal(line, FilterAssignments.LineInName(name));
         }
 
+        /// <summary>The filters of an L/RGB row are found by name, whole words only.</summary>
+        [Theory]
+        [InlineData("L", "L")]
+        [InlineData("Lum", "L")]
+        [InlineData("Luminance", "L")]
+        [InlineData("Baader R", "R")]
+        [InlineData("Red", "R")]
+        [InlineData("Grün", "G")]
+        [InlineData("Astronomik Deep-Sky B", "B")]
+        [InlineData("Blau", "B")]
+        [InlineData("L-eXtreme", null)]            // starts with L, is a duo narrowband filter
+        [InlineData("Optolong L-eNhance", null)]
+        [InlineData("Ha", null)]
+        [InlineData("O3", null)]
+        [InlineData("RGB", null)]                  // no single channel
+        [InlineData("R G", null)]
+        [InlineData("Shark", null)]
+        [InlineData("", null)]
+        public void TheChannelOfAnLrgbSetANameNames(string name, string? channel) {
+            Assert.Equal(channel, FilterAssignments.LrgbChannel(name)?.ToString());
+        }
+
         [Fact]
         public void AssignmentsSurviveTheRoundTripAndInvalidOnesAreDropped() {
             var list = new[] {

@@ -122,6 +122,7 @@ namespace NINA.Plugin.Nstn.Checks {
                 AssignmentChecks();
                 OwnWindowChecks();
                 SunriseChecks(runs);
+                LrgbAndPriorityChecks(runs);
                 if (runs) {
                     RunChecks();
                 }
@@ -634,6 +635,107 @@ namespace NINA.Plugin.Nstn.Checks {
         /// <summary>The JSON object of the row with that filter name.</summary>
         private static string RowJson(string json, string filter) =>
             Regex.Match(json, "\\{[^{}]*\"FilterName\": \"" + Regex.Escape(filter) + "\"[^{}]*\\}").Value;
+
+        // -------------------------------------------------------------------
+        // L/RGB as one row in a ratio, and priority that takes over at once
+        // -------------------------------------------------------------------
+
+        private const string LrgbAssignments =
+            "[{\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+            "{\"NinaName\":\"R\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+            "{\"NinaName\":\"G\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+            "{\"NinaName\":\"B\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}," +
+            "{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}]";
+
+        private static FilterPlanRow LrgbRow(string ratio, double l, double rgb, bool priority = false) =>
+            new FilterPlanRow { ExposureSeconds = l, RgbExposureSeconds = rgb, Ratio = ratio, FilterName = FilterPlanRow.Lrgb, Priority = priority };
+
+        private static void LrgbAndPriorityChecks(bool runs) {
+            Console.WriteLine();
+            Console.WriteLine("== L/RGB as one row in a ratio; priority takes over after the running exposure ==");
+            var site = SiteProfile(21.3, new[] { "L", "R", "G", "B", "Ha", "L-eXtreme" }, LrgbAssignments);
+            var dso = TargetM33(site);
+            var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+            plan.Rows.Clear();
+            plan.Rows.Add(new FilterPlanRow { FilterName = "Ha" });
+            plan.Rows.Add(LrgbRow("3:1:1:1", 60, 120, priority: true));
+            dso.Add(plan);
+
+            Check("the row list offers L/RGB first", plan.RowChoices.FirstOrDefault() == FilterPlanRow.Lrgb, string.Join(", ", plan.RowChoices));
+            Check("one block for the set, in the ratio, priority first",
+                Plain(plan.ActualStructure) == "Wait | LRGB L 3x60 R 1x120 G 1x120 B 1x120 g-1 o-1 1x1 r- | Ha 5x300 | End", plan.ActualStructure);
+            Check("L/RGB: children match the rows", plan.ActualStructure == plan.ExpectedStructure, plan.ExpectedStructure);
+            Check("L/RGB: the set's label", plan.Rows[1].Label == "L/RGB: 3:1:1:1 (L 60 s, RGB 120 s)", plan.Rows[1].Label);
+            Check("L/RGB: judged by the broadband window", plan.Windows[0].Line == Bands.Broadband && !plan.Windows[0].FollowsBlockFilter, plan.Windows[0].Line);
+            plan.Validate();
+            // N.I.N.A.'s own items report the stub devices (no camera, no image folder); only the plan's say something here.
+            Check("L/RGB: no issue of the plan with L, R, G, B in the profile (L-eXtreme is not taken for L)",
+                !plan.Issues.Any(i => i.Contains(FilterPlanRow.Lrgb, StringComparison.Ordinal) || i == Text.T("Plan_IssueMismatch")), string.Join(" / ", plan.Issues));
+
+            plan.Rows[1].Ratio = "0:1:1:1";
+            Check("ratio 0:1:1:1 leaves L out", Plain(plan.ActualStructure).StartsWith("Wait | LRGB R 1x120 G 1x120 B 1x120 ", StringComparison.Ordinal), plan.ActualStructure);
+            Check("... and the label names only the RGB time", plan.Rows[1].Label == "L/RGB: 0:1:1:1 (RGB 120 s)", plan.Rows[1].Label);
+            plan.Rows[1].Ratio = "3:1:1";
+            Check("an unreadable ratio keeps the old one", plan.Rows[1].Ratio == "0:1:1:1", plan.Rows[1].Ratio);
+            plan.Rows[1].Ratio = "3 / 1 / 1 / 1";
+            Check("'3 / 1 / 1 / 1' is read as 3:1:1:1", plan.Rows[1].Ratio == "3:1:1:1", plan.Rows[1].Ratio);
+
+            // Saved with the sequence and read back.
+            var root = new SequentialContainer { Name = "Root" };
+            root.Add(plan.Clone() as NstnFilterPlan);
+            var json = converter.Serialize(root);
+            var loaded = ((ISequenceContainer)converter.Deserialize(json)).Items.OfType<NstnFilterPlan>().Single();
+            var row = loaded.Rows.Single(r => r.IsLrgb);
+            Check("saved and loaded: the set's ratio and both times", row.Ratio == "3:1:1:1" && row.ExposureSeconds == 60 && row.RgbExposureSeconds == 120 && row.Priority,
+                RowJson(json, FilterPlanRow.Lrgb));
+            Check("saved and loaded: children match the rows", loaded.ActualStructure == loaded.ExpectedStructure, loaded.ActualStructure);
+            Check("a single-filter row writes nothing of a set", !Regex.IsMatch(RowJson(json, "Ha"), "Ratio|RgbExposureSeconds"), RowJson(json, "Ha"));
+            var back = LrgbRow("3:1:1:1", 60, 120);
+            back.FilterName = "Ha";
+            Check("a row switched back to one filter forgets the set", back.Ratio == null && back.RgbExposureSeconds == 0 && back.IsSingleFilter, $"{back.Ratio} {back.RgbExposureSeconds}");
+
+            // A filter the options assign to a narrowband line is never taken for L/RGB.
+            var narrowL = SiteProfile(21.3, new[] { "L", "R", "G", "B" }, LrgbAssignments.Replace("\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89", "\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7"));
+            var other = new NstnFilterPlan(narrowL, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+            other.Rows.Clear();
+            other.Rows.Add(LrgbRow("1:1:1:1", 60, 120));
+            TargetM33(narrowL).Add(other);
+            other.Validate();
+            Check("an L assigned to a narrowband line is not taken: the plan says which name it looks for",
+                other.Issues.Any(i => i.Contains("L/RGB", StringComparison.Ordinal) && i.Contains("Lum", StringComparison.Ordinal)), string.Join(" / ", other.Issues));
+
+            if (!runs) {
+                return;
+            }
+
+            // Run F: O III (Askar D1) runs a long set; H-alpha has priority from 05:41. It must
+            // take over after the running exposure, not when the 60 exposures are done.
+            var f = PlanRun.Execute(Path.Combine(outDir, "run-f"), Night(5, 40, 35), TimeSpan.FromSeconds(50), roundsPerFilter: 1, imagesMissing: false, rows: new[] {
+                new FilterPlanRow { FilterName = "Askar D1", Count = 60, ExposureSeconds = 1 },
+                new FilterPlanRow { FilterName = "Ha", Count = 5, ExposureSeconds = 1, Priority = true, NotBefore = "05:41" },
+            });
+            f.WriteTimeline(Path.Combine(outDir, "run-f.txt"));
+            var takeover = f.FirstCapture.TryGetValue("Ha", out var first) ? first.ToLocalTime() : (DateTime?)null;
+            Console.WriteLine($"  run F (priority from 05:41): {f.Captures} exposures, H-alpha first at {takeover:HH:mm:ss}, order {string.Join(" ", f.CaptureOrder.Take(40))}");
+            Check("run F: O III exposed before the priority window opened", f.CapturesPerFilter.ContainsKey("Askar D1"), string.Join(", ", f.CapturesPerFilter.Select(kv => $"{kv.Key} {kv.Value}")));
+            Check("run F: H-alpha took over within seconds of 05:41, after the running exposure",
+                // Without the takeover H-alpha would wait for the 60 exposures (after 05:41:35, past the run's end).
+                takeover is DateTime t && t.TimeOfDay >= new TimeSpan(5, 41, 0) && t.TimeOfDay <= new TimeSpan(5, 41, 6), $"{takeover:HH:mm:ss}");
+            var afterTakeover = f.CaptureOrder.SkipWhile(c => c != "Ha").ToList();
+            Check("run F: while it is open nothing else runs", afterTakeover.Count > 0 && afterTakeover.All(c => c == "Ha"), string.Join(" ", afterTakeover));
+
+            // Run G: the L/RGB set with priority in its window 05:04-05:26: L, R, G, B in the
+            // ratio 3:1:1:1, one after the other, and H-alpha (open too) waits.
+            var g = PlanRun.Execute(Path.Combine(outDir, "run-g"), Night(5, 10, 0), TimeSpan.FromSeconds(20), roundsPerFilter: 1, imagesMissing: false, rows: new[] {
+                new FilterPlanRow { FilterName = "Ha", Count = 2, ExposureSeconds = 1 },
+                LrgbRow("3:1:1:1", 1, 1, priority: true),
+            });
+            g.WriteTimeline(Path.Combine(outDir, "run-g.txt"));
+            Console.WriteLine($"  run G (L/RGB 3:1:1:1 with priority): {g.Captures} exposures, order {string.Join(" ", g.CaptureOrder.Take(24))}");
+            Check("run G: L, R, G, B in the ratio 3:1:1:1, in this order", g.CaptureOrder.Count >= 6 && string.Join("", g.CaptureOrder.Take(6)) == "LLLRGB"
+                && (g.CaptureOrder.Count < 12 || string.Join("", g.CaptureOrder.Skip(6).Take(6)) == "LLLRGB"), string.Join(" ", g.CaptureOrder));
+            Check("run G: H-alpha waits while the L/RGB window is open", !g.CapturesPerFilter.ContainsKey("Ha"), string.Join(", ", g.CapturesPerFilter.Select(kv => $"{kv.Key} {kv.Value}")));
+        }
 
         // -------------------------------------------------------------------
         // Sunrise: the coming night is shown, a run keeps the night it started in

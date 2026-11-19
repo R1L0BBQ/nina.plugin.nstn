@@ -49,27 +49,64 @@
                                             MinWidth="150"
                                             VerticalAlignment="Center"
                                             IsEditable="True"
-                                            ItemsSource="{Binding DataContext.FilterNames, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            ItemsSource="{Binding DataContext.RowChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             Text="{Binding FilterName, UpdateSourceTrigger=LostFocus}"
                                             ToolTip="{nstn:T Plan_Filter}" />
-                                        <TextBox
-                                            MinWidth="40"
-                                            Margin="10,0,0,0"
-                                            VerticalAlignment="Center"
-                                            Text="{Binding Count}"
-                                            TextAlignment="Right" />
-                                        <TextBlock
-                                            Margin="5,0,0,0"
-                                            VerticalAlignment="Center"
-                                            Text="×" />
-                                        <ninactrl:UnitTextBox
-                                            MinWidth="60"
-                                            Margin="5,0,0,0"
-                                            VerticalAlignment="Center"
-                                            VerticalContentAlignment="Center"
-                                            Text="{Binding ExposureSeconds}"
-                                            TextAlignment="Right"
-                                            Unit="s" />
+                                        <!--  A single filter: count × time  -->
+                                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsSingleFilter, Converter={StaticResource NstnPlanRowVisibility}}">
+                                            <TextBox
+                                                MinWidth="40"
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Count}"
+                                                TextAlignment="Right" />
+                                            <TextBlock
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="×" />
+                                            <ninactrl:UnitTextBox
+                                                MinWidth="60"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                VerticalContentAlignment="Center"
+                                                Text="{Binding ExposureSeconds}"
+                                                TextAlignment="Right"
+                                                Unit="s" />
+                                        </StackPanel>
+                                        <!--  An L/RGB set: ratio, time of L, time of R, G and B  -->
+                                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsLrgb, Converter={StaticResource NstnPlanRowVisibility}}">
+                                            <TextBox
+                                                MinWidth="70"
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Ratio, UpdateSourceTrigger=LostFocus}"
+                                                TextAlignment="Right"
+                                                ToolTip="{nstn:T Plan_RatioHint}" />
+                                            <TextBlock
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="L" />
+                                            <ninactrl:UnitTextBox
+                                                MinWidth="60"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                VerticalContentAlignment="Center"
+                                                Text="{Binding ExposureSeconds}"
+                                                TextAlignment="Right"
+                                                Unit="s" />
+                                            <TextBlock
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="RGB" />
+                                            <ninactrl:UnitTextBox
+                                                MinWidth="60"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                VerticalContentAlignment="Center"
+                                                Text="{Binding RgbExposureSeconds}"
+                                                TextAlignment="Right"
+                                                Unit="s" />
+                                        </StackPanel>
                                         <!--  N.I.N.A.'s button style ignores Padding: the gaps come from the margins.  -->
                                         <Button
                                             Margin="15,0,0,0"

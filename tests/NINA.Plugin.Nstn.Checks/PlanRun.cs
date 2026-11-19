@@ -69,6 +69,10 @@ namespace NINA.Plugin.Nstn.Checks {
         public int Dither { get; private set; }
         public int Probes { get; private set; }
         public Dictionary<string, int> CapturesPerFilter { get; } = new Dictionary<string, int>();
+        /// <summary>NSTN's clock at the first exposure of each filter.</summary>
+        public Dictionary<string, DateTime> FirstCapture { get; } = new Dictionary<string, DateTime>();
+        /// <summary>The filters of the exposures in the order they were taken.</summary>
+        public List<string> CaptureOrder { get; } = new List<string>();
         public NstnFilterPlan Plan { get; private set; }
         public NstnNightLeftCondition End { get; private set; }
         public NightPlan NightPlan { get; private set; }
@@ -102,18 +106,24 @@ namespace NINA.Plugin.Nstn.Checks {
         }
 
         /// <summary>Runs the plan from <paramref name="startUtc"/> (NSTN's clock) for at most <paramref name="limit"/>.</summary>
-        public static PlanRun Execute(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold = null) {
+        public static PlanRun Execute(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold = null,
+                IReadOnlyList<FilterPlanRow> rows = null) {
             var run = new PlanRun();
-            run.Run(outDir, startUtc, limit, roundsPerFilter, imagesMissing, narrowbandThreshold);
+            run.Run(outDir, startUtc, limit, roundsPerFilter, imagesMissing, narrowbandThreshold, rows);
             return run;
         }
 
-        private void Run(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold) {
+        private void Run(string outDir, DateTime startUtc, TimeSpan limit, int roundsPerFilter, bool imagesMissing, double? narrowbandThreshold,
+                IReadOnlyList<FilterPlanRow> rows) {
             var profile = Stub.Create<IProfileService>();
             var p = profile.ActiveProfile;
             p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("Askar D1", 0, 0));
             p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("Ha", 0, 1));
             p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("L", 0, 2));
+            // R, G and B for an L/RGB row; the default rows do not use them.
+            p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("R", 0, 3));
+            p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("G", 0, 4));
+            p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo("B", 0, 5));
             p.AstrometrySettings.Latitude = 49.8;
             p.AstrometrySettings.Longitude = 6.6;
             var images = Path.Combine(outDir, "images");
@@ -172,6 +182,8 @@ namespace NINA.Plugin.Nstn.Checks {
                     lock (CapturesPerFilter) {
                         Captures++;
                         CapturesPerFilter[filter] = CapturesPerFilter.TryGetValue(filter, out var n) ? n + 1 : 1;
+                        FirstCapture.TryAdd(filter, NstnClock.UtcNow);
+                        CaptureOrder.Add(filter);
                     }
                     Note($"EXPOSURE {filter} {capture.ExposureTime} s (NSTN clock {NstnClock.UtcNow.ToLocalTime():HH:mm:ss})");
                     await Task.Delay(TimeSpan.FromSeconds(capture.ExposureTime), token);
@@ -252,9 +264,13 @@ namespace NINA.Plugin.Nstn.Checks {
                 Plan = Construct<NstnFilterPlan>();
                 Plan.Name = "NSTN filter plan";
                 Plan.Rows.Clear();
-                Plan.Rows.Add(new FilterPlanRow { FilterName = "Askar D1", Count = 2, ExposureSeconds = 1 });
-                Plan.Rows.Add(new FilterPlanRow { FilterName = "Ha", Count = 2, ExposureSeconds = 1 });
-                Plan.Rows.Add(new FilterPlanRow { FilterName = "L", Count = 2, ExposureSeconds = 1 });
+                foreach (var row in rows ?? new[] {
+                        new FilterPlanRow { FilterName = "Askar D1", Count = 2, ExposureSeconds = 1 },
+                        new FilterPlanRow { FilterName = "Ha", Count = 2, ExposureSeconds = 1 },
+                        new FilterPlanRow { FilterName = "L", Count = 2, ExposureSeconds = 1 },
+                    }) {
+                    Plan.Rows.Add(row);
+                }
                 Plan.RoundsPerFilter = roundsPerFilter;
                 dso.Add(Plan);
                 End = (NstnNightLeftCondition)Plan.Conditions[0];

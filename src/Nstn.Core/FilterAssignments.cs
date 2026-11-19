@@ -132,6 +132,33 @@ namespace Nstn.Core {
         public static string? LineInName(string? ninaName) =>
             string.IsNullOrWhiteSpace(ninaName) ? null : SingleLine(ninaName);
 
+        // Whole words of a filter name that name a channel of an L/RGB set.
+        private static readonly (char Channel, string[] Words)[] LrgbWords = {
+            ('L', new[] { "l", "lum", "luma", "luminance", "luminanz", "clear" }),
+            ('R', new[] { "r", "red", "rot" }),
+            ('G', new[] { "g", "green", "grün", "gruen" }),
+            ('B', new[] { "b", "blue", "blau" }),
+        };
+
+        /// <summary>
+        /// The channel of an L/RGB set a filter's name names - 'L', 'R', 'G' or 'B' - or
+        /// null. Whole words only ("Baader R", "Lum", "Blau"), and never a filter whose
+        /// name names a line or a product: "L-eXtreme" starts with an L but is a duo
+        /// narrowband filter.
+        /// </summary>
+        public static char? LrgbChannel(string? ninaName) {
+            if (string.IsNullOrWhiteSpace(ninaName) || SingleLine(ninaName) != null) {
+                return null;
+            }
+            var compact = Regex.Replace(ninaName.ToLowerInvariant(), @"[\s\-/_]+", string.Empty);
+            if (Products.Any(p => compact.Contains(p.Token, StringComparison.Ordinal))) {
+                return null;
+            }
+            var words = Regex.Split(ninaName.ToLowerInvariant(), @"[^\p{L}\p{N}]+").Where(w => w.Length > 0).ToList();
+            var channels = LrgbWords.Where(c => words.Any(w => c.Words.Contains(w))).Select(c => c.Channel).Distinct().ToList();
+            return channels.Count == 1 ? channels[0] : null;
+        }
+
         // ------------------------------------------------------------------
         // storage: a JSON array in the plugin settings of the profile
         // ------------------------------------------------------------------

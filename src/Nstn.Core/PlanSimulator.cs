@@ -10,6 +10,9 @@
 //   exposure that has started always runs to its end.
 // * A block repeats while its window is open, up to its own iteration limit. Without
 //   a limit it keeps the window to itself - strict priority, not a round robin.
+// * A preempting block (priority row of a filter plan) takes over as soon as its window
+//   opens: every block below it stops after the running exposure while it is open, the
+//   pass runs out, and the next pass starts with it. Of two, the upper one wins.
 // Not modelled: autofocus, meridian flip, filter changes, slews, plate solving. A
 // flat overhead per exposure stands in for download, saving and dithering.
 
@@ -23,9 +26,10 @@ namespace Nstn.Core {
     /// One instruction set of the outer loop with "Loop while NSTN window open".
     /// <paramref name="PassExposures"/> are the exposure times of one pass through the
     /// set, in seconds and in order; <paramref name="MaxPasses"/> its iteration limit,
-    /// null when it has none.
+    /// null when it has none. <paramref name="Preempts"/>: the blocks below it yield
+    /// while its window is open (a priority row of a filter plan).
     /// </summary>
-    public sealed record PlanBlock(string Label, BandForecast Forecast, IReadOnlyList<double> PassExposures, int? MaxPasses);
+    public sealed record PlanBlock(string Label, BandForecast Forecast, IReadOnlyList<double> PassExposures, int? MaxPasses, bool Preempts = false);
 
     /// <param name="OverheadSeconds">Added after every exposure: download, saving, dithering.</param>
     /// <param name="OuterPasses">Remaining passes of the outer loop, null when its end is not a pass count.</param>
@@ -64,6 +68,8 @@ namespace Nstn.Core {
             PlanStop stop;
 
             bool Open(int i) => blocks[i].Forecast.IsOpenAt(t);
+            // Open, and no open preempting block above it.
+            bool MayRun(int i) => Open(i) && !Enumerable.Range(0, i).Any(j => blocks[j].Preempts && Open(j));
             bool PastEnd() => limits.EndMs is double end && t >= end;
 
             while (true) {
@@ -102,12 +108,12 @@ namespace Nstn.Core {
                 for (var i = 0; i < blocks.Count && !limitHit; i++) {
                     var block = blocks[i];
                     for (var pass = 0; block.MaxPasses == null || pass < block.MaxPasses; pass++) {
-                        if (!Open(i) || PastEnd()) {
+                        if (!MayRun(i) || PastEnd()) {
                             break;
                         }
                         var ran = 0;
                         foreach (var exposure in block.PassExposures) {
-                            if (!Open(i) || PastEnd()) {
+                            if (!MayRun(i) || PastEnd()) {
                                 break;
                             }
                             if (total >= MaxExposures) {

@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using NINA.Astrometry;
 using NINA.Core.Enum;
 using NINA.Core.Utility;
+using NINA.Plugin.Nstn.FilterPlan;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.Conditions;
 using NINA.Sequencer.Container;
@@ -65,6 +66,7 @@ namespace NINA.Plugin.Nstn.Conditions {
         // Survives the loop's ResetProgress on purpose: the log gets one line per
         // change of state, not one per pass of an outer loop.
         private bool? lastReportedOpen;
+        private bool lastReportedYield;
         private BandForecast lastForecast;
         private DateTime lastRefreshUtc = DateTime.MinValue;
 
@@ -490,14 +492,22 @@ namespace NINA.Plugin.Nstn.Conditions {
 
         public override bool Check(ISequenceItem previousItem, ISequenceItem nextItem) {
             var forecast = Refresh(force: false);
-            var open = forecast != null && forecast.IsOpenAt(NightModel.ToEpochMs(NstnClock.UtcNow));
+            var now = NightModel.ToEpochMs(NstnClock.UtcNow);
+            var open = forecast != null && forecast.IsOpenAt(now);
             if (IsActive() && lastReportedOpen != open) {
                 lastReportedOpen = open;
                 var reason = forecast == null ? string.Join(" ", Issues) : NowSummary;
                 // The block's name tells two blocks of the same band apart (a filter plan names them after its rows).
                 Logger.Info($"{nameof(NstnWindowCondition)} {ShortLabel} in '{Parent?.Name}' {(open ? "open" : "closed")}: {reason}");
             }
-            return open;
+            // In a filter plan an open priority block above takes over: this block ends after
+            // the running exposure, the plan's next round starts with the priority block.
+            var yields = open && Parent?.Parent is NstnFilterPlan plan && plan.MustYield(Parent, now);
+            if (IsActive() && lastReportedYield != yields) {
+                lastReportedYield = yields;
+                Logger.Info($"{nameof(NstnWindowCondition)} {ShortLabel} in '{Parent?.Name}' {(yields ? "gives way to a priority row" : "no longer gives way")}");
+            }
+            return open && !yields;
         }
 
         public bool Validate() {

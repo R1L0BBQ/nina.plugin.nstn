@@ -94,8 +94,10 @@ namespace NINA.Plugin.Nstn.Instructions {
                             break;
                     }
                 }
+                // In a filter plan a block without an iteration limit is a priority row: it
+                // takes over as soon as its window opens (NstnFilterPlan.MustYield).
                 blocks.Add(new PlanBlock(string.IsNullOrWhiteSpace(container.Name) ? nstn.ShortLabel : container.Name,
-                    forecast, Expand(container, 0), maxPasses));
+                    forecast, Expand(container, 0), maxPasses, Preempts: maxPasses == null && parent is FilterPlan.NstnFilterPlan));
             }
 
             if (blocks.Count == 0) {

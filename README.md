@@ -320,7 +320,7 @@ N.I.N.A. überspringt Wurzel-Container im Vorlagenordner (`TemplateController`).
 - **Ziel:** M 33.
   - Auslöser: Meridianflip, Dither nach 3 Aufnahmen, **AF nach Zeit (60 min)**.
   - Darin: Hinweis, NSTN Night Info, warten bis zur nautischen Dämmerung und bis 20° Höhe, schwenken und zentrieren, Hinweis zum Autofokus, **Autofokus**, Guiding starten.
-  - Filterplan: L, R, G, B je 5 × 120 s und Ha 5 × 300 s, Sätze am Stück 2.
+  - Filterplan: L/RGB 3:1:1:1 (L 60 s, RGB 120 s) mit Vorrang und Ha 5 × 300 s, Sätze am Stück 2.
 - **Ende:** Guiding stoppen, aufwärmen, parken.
 
 **Autofokus auf L (19.11.2026, auf Marcs Wunsch):** einmal vor dem Guiding, dann jede
@@ -521,7 +521,32 @@ Die englischen Texte sind entsprechend nachgezogen.
 | `-WriteSequence` | beide Beispielsequenzen laden und speichern byte-gleich, keine unbekannten Typen |
 | Abgeschottete N.I.N.A. 3.2, Kopie von Marcs Arbeitsprofil (Standort auf Kordel gesetzt), 09:30 | „Nacht 19./20. Nov.“, „offen 18:32–04:34 (10 h 02 min) / Zu, öffnet 18:32“, „Sätze am Stück“, „Geplant ab 15:54: H-Alpha 6 nm 12 h 20 min · Ende 04:38: das letzte Fenster schließt“; Nachtinfo mit „Nacht 19./20. Nov.“, Zeile „Himmel“, Diagramm „SQM 21,0“ (Komma: der Punkt aus Marcs Bild ließ sich nicht nachstellen). Überschrift 7,4:1, Zweitzeilen 5,3:1 |
 
-## Bekannte Grenzen (Stand 0.9.0)
+## 0.10.0 (19.11.2026)
+
+**Anlass:** In Marcs Plan (L, R, G, B je 2 × 120 s; Ha, S2, O3 je 5 × 300 s; Sätze am Stück 2) bekam L/RGB nichts, obwohl sein Fenster 02:56–04:12 offen war. Eine Zeile wird nur geprüft, wenn die Runde bei ihr ankommt; eine Runde mit drei offenen Schmalbandzeilen dauerte gut 2,5 h. Das LRGB-Fenster öffnete und schloss mitten in der Runde ab 02:05. Der Nachtplan zeigte das korrekt (0 s).
+
+**Eine Zeile L/RGB** (Marcs Entwurf): In der Filterliste einer Zeile steht oben „L/RGB“. Die Zeile fasst L, R, G und B zusammen:
+- Verhältnis L:R:G:B je Runde, z. B. 3:1:1:1 oder 0:1:1:1 (0 = Filter weglassen).
+- Belichtungszeit getrennt für L und für RGB.
+- Ein Block mit SwitchFilter + Serie je Filter, beurteilt vom Breitband-Fenster (explizit, nicht „Filter dieses Blocks“, der vier Filter nicht kennt).
+- Welche Profilfilter L, R, G, B sind, erkennt NSTN am Namen (`FilterAssignments.LrgbChannel`: ganze Wörter L/Lum/Luminance/Clear, R/Red/Rot, G/Green/Grün, B/Blue/Blau). Namen mit Linie oder Produkt fallen heraus („L-eXtreme“), ebenso Filter, die in den Optionen einer Schmalbandlinie zugeordnet sind. Fehlt einer, meldet der Plan, welche Namen er sucht.
+- Gespeichert werden `Ratio` und `RgbExposureSeconds` nur in L/RGB-Zeilen; bestehende Pläne bleiben byte-gleich.
+
+**Vorrang übernimmt sofort** (Marcs Entscheidungen): Öffnet das Fenster einer Vorrang-Zeile, endet die laufende Zeile nach ihrer Aufnahme, auch mitten in der Runde. Solange es offen ist, läuft nichts anderes. Bei zwei offenen Vorrang-Zeilen läuft die obere.
+- Umsetzung: Die NSTN-Bedingung eines Blocks prüft vor jeder Aufnahme zusätzlich `NstnFilterPlan.MustYield` (ein offener Vorrang-Block weiter oben). Vorrang-Blöcke stehen zuerst und haben keine Iterationsgrenze.
+- Der Nachtplan rechnet genauso (`PlanBlock.Preempts`).
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 262/262. Neu: Kanalerkennung am Namen (16 Fälle), Simulation „Vorrang übernimmt nach der laufenden Aufnahme“ (Marcs Fall nachgestellt) und „von zwei Vorrängen gewinnt der obere“. Gegenprobe ohne Vorrang in der Simulation: beide fallen |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 174/174. Neu: Aufbau, Speichern/Laden und Bezeichnung der L/RGB-Zeile, 0:1:1:1, unlesbares Verhältnis, Rückweg zur Einzelzeile, kein schmalbandiger Filter als L. **Lauf F:** O III (60 × 1 s) läuft, Hα mit Vorrang ab 05:41 übernimmt um 05:41:00 nach der laufenden Aufnahme, danach nur Hα. **Lauf G:** L/RGB 3:1:1:1 mit Vorrang belichtet LLLRGB LLLRGB …, Hα wartet |
+| `-WriteSequence` | Beispielsequenz jetzt mit L/RGB 3:1:1:1 (L 60 s, RGB 120 s) mit Vorrang und Ha; lädt byte-gleich, Sequenzprüfung ohne Meldung |
+
+**Angesehen** in der abgeschotteten N.I.N.A. 3.2 mit einer Kopie von Marcs Arbeitsprofil (deutsch): Die Zeile zeigt „L/RGB | 3:1:1:1 | L 60 s | RGB 120 s | Vorrang“; Nachtplan „Geplant ab 15:54: L/RGB 9 h 00 min, H-Alpha 6 nm 2 h 35 min“. Hα läuft nur, solange L/RGB zu ist. Beschriftungen L und RGB 7,4:1.
+
+**Grenze:** Wird ein L/RGB-Durchgang vom schließenden Fenster unterbrochen, beginnt der nächste wieder mit L. Bei häufigen Unterbrechungen bekommt L etwas mehr als sein Anteil.
+
+## Bekannte Grenzen (Stand 0.10.0)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

@@ -10,7 +10,7 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.9.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+Diese Anleitung beschreibt Version 0.10.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
 alle anderen Teile seit 0.6.0.
 
 ## Inhalt
@@ -146,10 +146,24 @@ Meridianflip, AF und Dither wurden ausgeführt.
 
 | Feld | Bedeutung |
 |---|---|
-| Filter | Name des Filters **wie in der Filterliste des Profils**, Groß-/Kleinschreibung egal. Das Band nimmt der Plan aus „Filter dieses Profils“. |
+| Filter | Name des Filters **wie in der Filterliste des Profils**, Groß-/Kleinschreibung egal. Das Band nimmt der Plan aus „Filter dieses Profils“. Ganz oben in der Liste steht **L/RGB** (siehe unten). |
 | # | Aufnahmen je Runde für diesen Filter. Darüber gewichtest du die Filter. |
 | × … s | Belichtungszeit |
 | Entfernen | Zeile löschen |
+
+**Die Zeile L/RGB (ab 0.10.0)** fasst L, R, G und B zu einer Zeile zusammen. Die vier teilen sich
+das Breitband-Fenster, und für den Vorrang zählen sie als eine Zeile.
+
+| Feld | Bedeutung |
+|---|---|
+| Verhältnis | L:R:G:B je Runde, z. B. **3:1:1:1** (drei L, dann je ein R, G, B) oder **0:1:1:1** (nur RGB). Erlaubt sind 0 bis 99. |
+| L … s | Belichtungszeit für L |
+| RGB … s | Belichtungszeit für R, G und B |
+
+Welche Filter des Profils L, R, G und B sind, erkennt NSTN am Namen: L, Lum, Luminance, Clear;
+R, Red, Rot; G, Green, Grün; B, Blue, Blau, auch als Wort in einem längeren Namen („Baader R“).
+Ein Filter, der in „Filter dieses Profils“ einer Schmalbandlinie zugeordnet ist, zählt nie
+(„L-eXtreme“ ist kein L). Fehlt einer, meldet der Plan das rot.
 
 „Filter hinzufügen“ hängt eine Zeile mit dem ersten noch nicht benutzten Filter an. Ein neuer
 Plan startet mit den ersten drei Filtern des Profils, je 5 × 300 s.
@@ -201,7 +215,7 @@ genug ist, rechnet NSTN weiterhin.
 
 | Feld | Wirkung | Beispiel |
 |---|---|---|
-| **Vorrang** | Die Zeile läuft vor den anderen und behält ihr Fenster, solange es offen ist. Die anderen Zeilen laufen nur, während es zu ist. | O III mit Vorrang: Jede dunkle Minute, in der O III lohnt, geht an O III. |
+| **Vorrang** | Öffnet das Fenster der Zeile, übernimmt sie **nach der laufenden Aufnahme**, auch mitten in einer Runde. Solange es offen ist, läuft nichts anderes. Sind zwei Zeilen mit Vorrang offen, läuft die obere. | L/RGB mit Vorrang: Das kurze Breitband-Fenster geht ganz an L/RGB, die Schmalbandzeilen bekommen den Rest der Nacht. |
 | **Schwelle** | Wird zur Schwelle der Plugin-Optionen addiert, in mag/arcsec². Plus heißt strenger, das Fenster wird kürzer und liegt im dunkelsten Teil der Nacht. Minus heißt lockerer, das Fenster wird länger. | O III +0,3: nur bei sehr dunklem Himmel. Hα −0,3: auch noch bei mehr Mond. |
 | **Mindesthöhe** | Mindesthöhe des Ziels für diesen Filter; leer nimmt die Plugin-Optionen. | L 40°: Breitband erst, wenn das Ziel hoch steht. |
 | **nicht vor / nicht nach** | Ortszeit als HH:mm. Zeiten vor Mittag gehören zum Morgen danach. Leer heißt keine Grenze. | B nicht nach 01:00. |
@@ -212,7 +226,13 @@ der Plan genau wie bisher.
 
 > **Vorrang mit Augenmaß:** Eine Zeile mit Vorrang nimmt sich ihr ganzes Fenster. Ohne
 > strengere Schwelle oder Zeitspanne bekommen die anderen Filter dann oft nichts mehr. Am
-> besten kombinierst du Vorrang mit einer engen Schwelle oder Zeitspanne.
+> besten kombinierst du Vorrang mit einer engen Schwelle oder Zeitspanne, oder du gibst ihn
+> einer Zeile mit kurzem Fenster, etwa L/RGB in der mondfreien Zeit.
+>
+> **Warum Vorrang für kurze Fenster?** Ohne Vorrang prüft der Plan eine Zeile nur, wenn die
+> Runde bei ihr ankommt. Mit drei Schmalbandzeilen à 2 × 5 × 300 s dauert eine Runde gut
+> 2,5 Stunden. Ein Breitband-Fenster von 76 Minuten, das mitten in der Runde öffnet und
+> schließt, geht dann leer aus. Mit Vorrang übernimmt L/RGB nach der laufenden Aufnahme.
 
 ### Beispiele für die Gewichtung
 
@@ -222,6 +242,8 @@ der Plan genau wie bisher.
   Die schwachen Linien bekommen mehr je Runde.
 - **Breitband nur in der mondfreien Zeit:** L 10 × 120 s als eigene Zeile. Ihr Fenster
   öffnet nur, wenn der Himmel dunkel genug ist; sonst wird sie übersprungen.
+- **LRGB plus Schmalband:** L/RGB 3:1:1:1 (L 60 s, RGB 120 s) **mit Vorrang**, dazu Ha, S II und
+  O III je 5 × 300 s. Im Breitband-Fenster läuft nur L/RGB, sonst die Schmalbandzeilen im Rundlauf.
 
 ### Fertige Beispielsequenz
 
@@ -235,7 +257,8 @@ unterscheiden sich nur in den Anmerkungen und den Namen.
   - Ziel M 33 mit den Auslösern Meridianflip, Dither nach 3 Aufnahmen und AF nach Zeit (60 min).
   - Im Ziel: NSTN-Nachtinfo, warten bis zur nautischen Dämmerung und bis das Ziel 20° hoch
     steht, dann schwenken und zentrieren, Autofokus, Guiding starten und der Filterplan:
-    L, R, G, B je 5 × 120 s, Ha 5 × 300 s, Sätze am Stück 2.
+    L/RGB 3:1:1:1 (L 60 s, RGB 120 s) **mit Vorrang** und Ha 5 × 300 s, Sätze am Stück 2.
+    Im kurzen Breitband-Fenster läuft also nur L/RGB, den Rest der Nacht Ha.
   - Ende: Guiding stoppen, Kamera aufwärmen, parken.
 - **Autofokus auf L:** einmal vor dem Guiding, danach jede Stunde. Damit N.I.N.A. dafür auf L
   wechselt, braucht das Profil zwei Einstellungen:
@@ -279,6 +302,8 @@ Vorlagenliste ziehen.
 2. **Runde für Runde:**
    - Jede Zeile kommt einmal dran, bei „Sätze am Stück“ > 1 entsprechend oft hintereinander.
    - Ein Filter, dessen Fenster gerade zu ist, wird übersprungen.
+   - Öffnet das Fenster einer Zeile mit Vorrang, endet die laufende Zeile nach ihrer Aufnahme,
+     und die Vorrang-Zeile läuft, bis ihr Fenster schließt.
    - Geprüft wird **vor jeder Aufnahme**. Eine laufende Aufnahme wird nie abgebrochen.
 3. **Auslöser:** Meridianflip, Dither und AF vom Ziel-Container greifen zwischen den
    Aufnahmen.
