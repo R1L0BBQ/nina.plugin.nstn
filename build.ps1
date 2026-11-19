@@ -7,9 +7,10 @@
     Kein lokales .NET-SDK nötig, nur Docker. Ablauf:
       1. Goldtests des Nachtmodells (Nstn.Core.Tests)
       2. Release-Build des Plugins -> dist\NSTN\ (genau drei DLLs und THIRD-PARTY-NOTICES.txt)
-      3. dist\NINA.Plugin.Nstn-<Version>.zip mit dem Ordner NSTN\
-         (wird nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\ entpackt)
+      3. dist\NINA.Plugin.Nstn-<Version>.zip mit den Dateien aus NSTN\ (ohne Ordner): das Archiv
+         für den Plugin-Manager; von Hand nach %LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN\ entpacken
       4. dist\NSTN-Installer-<Version>.zip zum Weitergeben (installer\Pack-Installer.ps1)
+      5. dist\manifest.json für das Plugin-Repository von N.I.N.A. (installer\New-Manifest.ps1)
     Danach tests\Run-NinaChecks.ps1: es prüft genau die Dateien aus dist\NSTN.
 
 .PARAMETER SkipTests
@@ -49,7 +50,9 @@ if ($dlls.Count -ne 3 -or $files.Count -ne 4 -or -not ($files.Name -contains 'TH
 
 $zip = Join-Path $root "dist\NINA.Plugin.Nstn-$version.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip }
-Compress-Archive -Path $stage -DestinationPath $zip
+# Die Dateien liegen direkt im ZIP: Der Plugin-Manager von N.I.N.A. entpackt ein ARCHIVE in
+# Plugins\3.0.0\<Name>, von Hand kommt der Inhalt nach Plugins\3.0.0\NSTN.
+Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
 
 $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Plugin: $zip"
@@ -58,3 +61,6 @@ $files | ForEach-Object { Write-Host ("  {0,-28} {1,8:N0} Bytes" -f $_.Name, $_.
 
 # Der Installer zum Weitergeben (installer\): dist\NSTN-Installer-<Version>.zip.
 & (Join-Path $root 'installer\Pack-Installer.ps1') -Root $root
+
+# Das Manifest zum ZIP oben (Prüfsumme); gilt nur, solange genau dieses ZIP hochgeladen wird.
+& (Join-Path $root 'installer\New-Manifest.ps1') -Root $root

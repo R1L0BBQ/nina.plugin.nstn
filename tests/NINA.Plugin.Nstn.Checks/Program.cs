@@ -859,11 +859,18 @@ namespace NINA.Plugin.Nstn.Checks {
                 var title = Text.T("Plan_SectionNight", Text.Night(night.AddDays(1)));
                 Check("08:58: the plan's heading names the coming night",
                     WaitFor(() => plan.Waiter?.NightTitle == title && plan.Waiter.Plan.HasPlan), $"'{plan.Waiter?.NightTitle}', want '{title}'");
-                var summary = plan.Waiter?.Plan.Summary ?? string.Empty;
-                Check("08:58: the night plan plans the coming night instead of 0 s",
-                    summary != Text.T("Plan_NothingLeft") && plan.Waiter.Plan.Rows.Any(r => r.Expected != Text.T("Plan_Nothing")), summary);
+                // Every row's forecast first, then the plan built from all of them: the plan is
+                // recomputed as forecasts arrive, and read too early it held only the L row (0.11.2 gate:
+                // "Planned from 02:38" while H-alpha opened at 02:26).
+                foreach (var window in plan.Windows) {
+                    WaitForForecast(window);
+                }
                 var opens = plan.Windows.Select(w => w.CurrentForecast()).Where(f => f != null && f.Segments.Count > 0).Select(f => f.Segments[0].Start).DefaultIfEmpty(0).Min();
                 var opensClock = Text.Clock(NightModel.ToUtcDateTime(opens).ToLocalTime());
+                var summary = string.Empty;
+                WaitFor(() => (summary = plan.Waiter?.Plan.Summary ?? string.Empty).Contains(opensClock, StringComparison.Ordinal));
+                Check("08:58: the night plan plans the coming night instead of 0 s",
+                    summary != Text.T("Plan_NothingLeft") && plan.Waiter.Plan.Rows.Any(r => r.Expected != Text.T("Plan_Nothing")), summary);
                 Check($"08:58: planned from the first window ({opensClock}), not from now",
                     opens > 0 && summary.Contains(opensClock, StringComparison.Ordinal) && !summary.Contains("08:58", StringComparison.Ordinal), summary);
                 Check("08:58: the row says when its window opens, without a sky value of daylight",

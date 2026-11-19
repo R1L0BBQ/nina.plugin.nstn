@@ -5,8 +5,7 @@ Installieren
   1. N.I.N.A. schließen.
   2. Dieses ZIP vollständig entpacken (nicht aus dem ZIP heraus starten).
   3. Install-NSTN.cmd doppelklicken.
-  4. N.I.N.A. starten. Unter Plugins > Installiert steht
-     "NSTN – Narrowband Saves The Night".
+  4. N.I.N.A. starten. Unter Plugins > Installiert steht "NSTN".
   5. Beim ersten Mal: Optionen > Plugins > NSTN, Himmelsqualität des
      Standorts (SQM) eintragen.
 
@@ -19,9 +18,13 @@ Der Installer
     %LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>,
   - lässt die NSTN-Einstellungen im N.I.N.A.-Profil unverändert.
 
-Lizenzen
-  NSTN\THIRD-PARTY-NOTICES.txt enthält die Lizenz der mitgelieferten
-  Astronomy Engine (astronomy.dll, MIT). Sie wird mit installiert.
+Lizenz und Quelltext
+  NSTN steht unter der Mozilla Public License 2.0 (MPL-2.0).
+  Quelltext, Lizenztext und Versionsgeschichte:
+    https://github.com/R1L0BBQ/nina.plugin.nstn
+  NSTN\THIRD-PARTY-NOTICES.txt enthält diese Angaben und die Lizenz der
+  mitgelieferten Astronomy Engine (astronomy.dll, MIT). Sie wird mit
+  installiert.
 
 Zurück zu einer älteren Version
   Den gewünschten Ordner aus NSTN-Sicherung bei geschlossener N.I.N.A.

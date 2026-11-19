@@ -179,7 +179,7 @@ try {
 
     Write-Host ''
     Write-Host "NSTN $new installiert." -ForegroundColor Green
-    Write-Host 'N.I.N.A. starten: Unter Plugins > Installiert steht dann „NSTN – Narrowband Saves The Night“.'
+    Write-Host 'N.I.N.A. starten: Unter Plugins > Installiert steht dann „NSTN“.'
     Write-Host 'Beim ersten Mal unter Optionen > Plugins > NSTN die Himmelsqualität des Standorts (SQM) eintragen.'
     Finish 0
 } catch {

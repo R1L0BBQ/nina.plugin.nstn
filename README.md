@@ -53,8 +53,8 @@ are needed; it installs for the current Windows user into
 while N.I.N.A. is open and backs up an installed version to `%LOCALAPPDATA%\NINA\NSTN-Sicherung`.
 `Uninstall-NSTN.cmd` removes it again.
 
-**By hand:** close N.I.N.A. and unpack the folder `NSTN` from `NINA.Plugin.Nstn-<version>.zip`
-into `%LOCALAPPDATA%\NINA\Plugins\3.0.0\`.
+**By hand:** close N.I.N.A. and unpack `NINA.Plugin.Nstn-<version>.zip` (from the same
+release) into `%LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN\`.
 
 ## Getting started
 

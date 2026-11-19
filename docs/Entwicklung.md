@@ -28,9 +28,33 @@ Voraussetzung: Docker mit `mcr.microsoft.com/dotnet/sdk:10.0`. Kein lokales .NET
 ```
 
 Ergebnis: `dist\NSTN\` mit genau drei DLLs (`NINA.Plugin.Nstn.dll`, `Nstn.Core.dll`,
-`astronomy.dll`) und `THIRD-PARTY-NOTICES.txt` (MIT-Lizenz der Astronomy Engine, Quelle
-`src\NINA.Plugin.Nstn\`), das ZIP darum und der Installer `dist\NSTN-Installer-<Version>.zip`.
+`astronomy.dll`) und `THIRD-PARTY-NOTICES.txt` (MPL-2.0 und Quelltext-Adresse von NSTN,
+MIT-Lizenz der Astronomy Engine; Quelle `src\NINA.Plugin.Nstn\`), dazu:
+
+- `dist\NINA.Plugin.Nstn-<Version>.zip`: dieselben vier Dateien ohne Ordner. Das ist das
+  `ARCHIVE` für den Plugin-Manager (er entpackt nach `Plugins\3.0.0\<Name>`, Name = `AssemblyTitle`
+  = `NSTN`) und die Handinstallation.
+- `dist\NSTN-Installer-<Version>.zip`: der Installer.
+- `dist\manifest.json`: das Manifest für `isbeorn/nina.plugin.manifests`, aus den Attributen der
+  gebauten DLL und der Prüfsumme des ZIPs oben (`installer\New-Manifest.ps1`, prüft die Grenzen
+  aus `manifest.schema.json`). Es gilt nur für genau dieses ZIP.
+
 Danach `tests\Run-NinaChecks.ps1`: es prüft genau diese drei DLLs.
+
+### Veröffentlichen
+
+Repo `https://github.com/R1L0BBQ/nina.plugin.nstn` (Spiegel von Forgejo, nur `main`).
+
+1. `.\build.ps1`, dann `.\tests\Run-NinaChecks.ps1`. Danach nichts mehr bauen.
+2. `main` nach GitHub pushen, Release `v<Major.Minor.Patch>` anlegen und
+   `dist\NINA.Plugin.Nstn-<Version>.zip` und `dist\NSTN-Installer-<Version>.zip` anhängen.
+3. Für den Plugin-Manager: `dist\manifest.json` per Pull Request in einen Fork von
+   `isbeorn/nina.plugin.manifests` (Ablage wie die vorhandenen Plugins unter `manifests/n/NSTN/`),
+   vorher dort `node gather.js` laufen lassen.
+
+`Name` (= `AssemblyTitle`) und `Identifier` (GUID) nie ändern: Der Name ist der Installationsordner
+und der Schlüssel der Optionsseite, die GUID der Schlüssel der Einstellungen im Profil.
+`ManifestTests` prüft Name, Optionsseite, Repository-Adresse und die Grenzen des Schemas.
 
 Nur `build.ps1` schreibt `dist\NSTN` (`-p:NstnStage=true`). Bis 0.11.1 tat das jeder Build des
 Plugin-Projekts, auch der des Prüfprogramms, und zwei Builds derselben Quelle ergeben andere

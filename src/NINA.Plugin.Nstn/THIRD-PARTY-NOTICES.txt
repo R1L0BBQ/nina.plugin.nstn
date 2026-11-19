@@ -1,5 +1,10 @@
-NSTN for N.I.N.A. - third-party notices
-=======================================
+NSTN for N.I.N.A. - license and third-party notices
+===================================================
+
+NSTN (NINA.Plugin.Nstn.dll, Nstn.Core.dll)
+  Copyright (c) 2026 Marc Fischer
+  License: Mozilla Public License 2.0 (MPL-2.0), https://www.mozilla.org/en-US/MPL/2.0/
+  Source code: https://github.com/R1L0BBQ/nina.plugin.nstn
 
 astronomy.dll
   Astronomy Engine 2.1.19 (NuGet package CosineKitty.AstronomyEngine)

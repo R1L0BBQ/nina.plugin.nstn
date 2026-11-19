@@ -7,7 +7,7 @@
     xmlns:nstn="clr-namespace:NINA.Plugin.Nstn">
 
     <!--  NINA looks the options page up as AssemblyTitle + "_Options"; the data context is NstnPlugin.  -->
-    <DataTemplate x:Key="NSTN – Narrowband Saves The Night_Options">
+    <DataTemplate x:Key="NSTN_Options">
         <StackPanel Margin="5" Orientation="Vertical">
             <TextBlock
                 Margin="0,0,0,10"

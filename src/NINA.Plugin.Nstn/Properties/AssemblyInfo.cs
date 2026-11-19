@@ -6,8 +6,11 @@ using System.Runtime.InteropServices;
 // never change it, or every profile loses its NSTN options.
 [assembly: Guid("da1b84a3-4397-4f30-8eb9-5ed431d4ff06")]
 
-[assembly: AssemblyTitle("NSTN – Narrowband Saves The Night")]
-[assembly: AssemblyDescription("A filter plan that exposes each filter - or an L/RGB set in a ratio - while the NSTN sky model rates its band as worth exposing, round after round until the night is over; the sequencer condition behind it, and a night overview with a check of the sequence structure.")]
+// The title is the plugin's name in N.I.N.A. and, in the plugin manifest, the folder the plugin
+// manager installs into: it stays "NSTN" like the installer's folder. Options.xaml keys on it.
+[assembly: AssemblyTitle("NSTN")]
+// The manifest's ShortDescription: at most 256 characters (ManifestTests).
+[assembly: AssemblyDescription("Narrowband Saves The Night: a filter plan that exposes each filter, or an L/RGB set in a ratio, while the sky model rates its band as worth exposing, all night long; the condition behind it and a night overview.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Marc Fischer")]
 [assembly: AssemblyProduct("NSTN for N.I.N.A.")]
@@ -19,11 +22,21 @@ using System.Runtime.InteropServices;
 // The check program sets NstnClock and reads the plan's failure count.
 [assembly: InternalsVisibleTo("NINA.Plugin.Nstn.Checks")]
 
-[assembly: AssemblyVersion("0.11.1.0")]
-[assembly: AssemblyFileVersion("0.11.1.0")]
+[assembly: AssemblyVersion("0.11.2.0")]
+[assembly: AssemblyFileVersion("0.11.2.0")]
 
 // Built against NINA.Plugin 3.2.0.9001 (.NET 8).
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
+
+// Read by N.I.N.A.'s plugin page and by the manifest for the plugin repository.
+[assembly: AssemblyMetadata("Homepage", "https://github.com/R1L0BBQ/nina.plugin.nstn")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/R1L0BBQ/nina.plugin.nstn")]
+[assembly: AssemblyMetadata("License", "MPL-2.0")]
+[assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
+[assembly: AssemblyMetadata("ChangelogURL", "https://github.com/R1L0BBQ/nina.plugin.nstn/blob/main/CHANGELOG.md")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "https://raw.githubusercontent.com/R1L0BBQ/nina.plugin.nstn/main/docs/images/nstn-filterplan.png")]
+[assembly: AssemblyMetadata("ScreenshotURL", "https://raw.githubusercontent.com/R1L0BBQ/nina.plugin.nstn/main/docs/images/nstn-sequenzer.png")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "https://raw.githubusercontent.com/R1L0BBQ/nina.plugin.nstn/main/docs/images/nstn-nachtinfo.png")]
 
 [assembly: AssemblyMetadata("Tags", "Sequencer,Conditions,Filter plan,Narrowband,LRGB,Moon,Twilight,Sky brightness")]
 

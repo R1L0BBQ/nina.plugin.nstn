@@ -2,6 +2,24 @@
 
 Neueste zuerst. Technik und Bauen: [docs/Entwicklung.md](docs/Entwicklung.md).
 
+## 0.11.2 (19.11.2026)
+
+**Für die Veröffentlichung auf GitHub und im Plugin-Manager.** Am Verhalten ändert sich nichts.
+- Lizenz MPL-2.0. Repository, Lizenz, Changelog und Bilder stehen in den Assembly-Metadaten (N.I.N.A. zeigt sie auf der Plugin-Seite, das Manifest liest sie von dort). `THIRD-PARTY-NOTICES.txt` und `LIESMICH.txt` nennen Lizenz und Quelltext-Adresse.
+- Der Name in N.I.N.A. ist jetzt „NSTN“ (vorher „NSTN – Narrowband Saves The Night“). Der Plugin-Manager installiert in einen Ordner mit diesem Namen, also in denselben Ordner `NSTN` wie Installer und Handinstallation; ein Wechsel lädt das Plugin nicht doppelt. Die Optionsseite hängt am Namen (`NSTN_Options`).
+- Kurzbeschreibung gekürzt auf höchstens 256 Zeichen (Grenze des Manifest-Schemas).
+- `NINA.Plugin.Nstn-<Version>.zip` enthält die Dateien jetzt ohne Ordner: Es ist das Archiv für den Plugin-Manager. Von Hand nach `Plugins\3.0.0\NSTN\` entpacken.
+- Neu `dist\manifest.json` (`installer\New-Manifest.ps1`) und `ManifestTests` (Name = Installationsordner, Optionsseite, Repository-Adresse, Schema-Grenzen).
+- Prüfprogramm: Die Sonnenaufgangs-Prüfung „geplant ab dem ersten Fenster“ las den Nachtplan, bevor die Hα-Vorhersage eingerechnet war (189/190 im ersten Endlauf, „Planned from 02:38“ statt 02:26). Sie wartet jetzt auf alle Vorhersagen und den daraus neu gerechneten Plan.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 267/267, neu 4 `ManifestTests` |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 190/190 mit genau den DLLs aus `dist\NSTN` und den beiden ZIPs (Plugin `5def999c…`) |
+| Installer mit Windows PowerShell 5.1, Wegwerf-`LOCALAPPDATA` | 16/16 |
+| `dist\manifest.json` | Grenzen des Schemas eingehalten, Prüfsumme = `NINA.Plugin.Nstn-0.11.2.0.zip` (`3d217d77…`), LongDescription 5 389 Zeichen |
+| Abgeschottete N.I.N.A. 3.2 | Plugins > Installiert: „NSTN“, Version 0.11.2.0, Homepage und Versionshistorie verlinkt, Optionsseite unter dem neuen Schlüssel vorhanden |
+
 ## Installer zu 0.11.1 (19.11.2026)
 
 Plugin unverändert. Neu ist `dist\NSTN-Installer-0.11.1.0.zip` für Marcs weitere N.I.N.A.-Instanzen ([docs/Entwicklung.md](docs/Entwicklung.md#installer), Abschnitt „Installer“).

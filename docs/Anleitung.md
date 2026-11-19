@@ -45,7 +45,7 @@ alle anderen Teile seit 0.6.0.
 1. N.I.N.A. beenden.
 2. Das ZIP vollständig entpacken und im entpackten Ordner `Install-NSTN.cmd` doppelklicken.
    Keine Administratorrechte nötig; installiert wird für den angemeldeten Windows-Benutzer.
-3. N.I.N.A. starten. Unter *Plugins* steht jetzt „NSTN – Narrowband Saves The Night“.
+3. N.I.N.A. starten. Unter *Plugins* steht jetzt „NSTN“.
 
 Der Installer prüft die Prüfsummen des Pakets, bricht bei laufender N.I.N.A. ab und sichert
 eine vorhandene NSTN-Version nach `%LOCALAPPDATA%\NINA\NSTN-Sicherung\<Zeitpunkt>-<Version>`.
@@ -56,10 +56,10 @@ mit Sicherung. Zurück zu einer älteren Version: bei geschlossener N.I.N.A. den
 **Von Hand** (`NINA.Plugin.Nstn-<Version>.zip`):
 
 1. N.I.N.A. beenden.
-2. Den Ordner `NSTN` aus dem ZIP nach `%LOCALAPPDATA%\NINA\Plugins\3.0.0\` entpacken.
-   Danach liegen die drei Dateien `NINA.Plugin.Nstn.dll`, `Nstn.Core.dll` und
-   `astronomy.dll` in `…\Plugins\3.0.0\NSTN\`, dazu `THIRD-PARTY-NOTICES.txt` mit der
-   Lizenz der Astronomy Engine.
+2. Den Inhalt des ZIPs nach `%LOCALAPPDATA%\NINA\Plugins\3.0.0\NSTN\` entpacken (den Ordner
+   `NSTN` vorher anlegen). Danach liegen dort die drei Dateien `NINA.Plugin.Nstn.dll`,
+   `Nstn.Core.dll` und `astronomy.dll`, dazu `THIRD-PARTY-NOTICES.txt` mit Lizenz und
+   Quelltext-Adresse von NSTN und der Lizenz der Astronomy Engine.
 3. N.I.N.A. starten.
 
 > **Hinweis zu N.I.N.A. 3.3:** 3.2 und 3.3 nutzen denselben Plugin-Ordner (`3.0.0`), dieselben
