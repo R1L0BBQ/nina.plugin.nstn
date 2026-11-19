@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Newtonsoft.Json;
+using NINA.Core.Model.Equipment;
 using NINA.Core.Utility;
 using Nstn.Core;
 
@@ -38,6 +39,12 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         private double exposureSeconds = 300;
         private string ratio;
         private double rgbExposureSeconds;
+        private int? gain;
+        private int? offset;
+        private string binning;
+        private int? rgbGain;
+        private int? rgbOffset;
+        private string rgbBinning;
         private bool priority;
         private double thresholdOffset;
         private double? minAltitude;
@@ -68,12 +75,20 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                     // A single filter again: nothing of the set is kept or saved.
                     ratio = null;
                     rgbExposureSeconds = 0;
+                    rgbGain = null;
+                    rgbOffset = null;
+                    rgbBinning = null;
                 }
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(IsLrgb));
                 RaisePropertyChanged(nameof(IsSingleFilter));
                 RaisePropertyChanged(nameof(Ratio));
                 RaisePropertyChanged(nameof(RgbExposureSeconds));
+                RaisePropertyChanged(nameof(RgbGain));
+                RaisePropertyChanged(nameof(RgbOffset));
+                RaisePropertyChanged(nameof(RgbBinning));
+                RaisePropertyChanged(nameof(CameraText));
+                RaisePropertyChanged(nameof(WindowText));
             }
         }
 
@@ -188,7 +203,109 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             set => SetWindow(ref notAfter, Clock(value, notAfter));
         }
 
-        /// <summary>Whether the row's own window settings are shown; not saved.</summary>
+        // -------------------------------------------------------------------
+        // the row's own camera values; null takes the plan's ("for all exposures")
+        // An L/RGB row: Gain/Offset/Binning for L, the Rgb* ones for R, G and B.
+        // -------------------------------------------------------------------
+
+        /// <summary>Gain of this row's exposures; -1 the camera's own, null the plan's.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public int? Gain {
+            get => gain;
+            set => SetWindow(ref gain, value is int v && v < -1 ? gain : value);
+        }
+
+        /// <summary>Offset of this row's exposures; -1 the camera's own, null the plan's.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public int? Offset {
+            get => offset;
+            set => SetWindow(ref offset, value is int v && v < -1 ? offset : value);
+        }
+
+        /// <summary>Binning of this row's exposures as "2x2"; empty or null the plan's.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string Binning {
+            get => binning;
+            set => SetWindow(ref binning, BinningText(value, binning));
+        }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public int? RgbGain {
+            get => rgbGain;
+            set => SetWindow(ref rgbGain, value is int v && v < -1 ? rgbGain : value);
+        }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public int? RgbOffset {
+            get => rgbOffset;
+            set => SetWindow(ref rgbOffset, value is int v && v < -1 ? rgbOffset : value);
+        }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string RgbBinning {
+            get => rgbBinning;
+            set => SetWindow(ref rgbBinning, BinningText(value, rgbBinning));
+        }
+
+        /// <summary>The binning of a series as N.I.N.A.'s value, null when the plan's applies.</summary>
+        public BinningMode BinningOf(bool rgb) {
+            var text = rgb ? rgbBinning : binning;
+            if (text == null) {
+                return null;
+            }
+            var parts = text.Split('x');
+            return new BinningMode(short.Parse(parts[0], CultureInfo.InvariantCulture), short.Parse(parts[1], CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>"2x2", "2X2" or "2" give "2x2"; empty clears it; unreadable text keeps the old value.</summary>
+        private static string BinningText(string text, string old) {
+            if (string.IsNullOrWhiteSpace(text)) {
+                return null;
+            }
+            var parts = text.Trim().ToLowerInvariant().Split('x');
+            if (parts.Length is < 1 or > 2
+                    || !short.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x)
+                    || !short.TryParse(parts.Length == 2 ? parts[1] : parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var y)
+                    || x is < 1 or > 16 || y is < 1 or > 16) {
+                return old;
+            }
+            return FormattableString.Invariant($"{x}x{y}");
+        }
+
+        /// <summary>The row's own camera values in a few words, empty when it has none.</summary>
+        public string CameraText {
+            get {
+                if (!IsLrgb) {
+                    return CameraParts(gain, offset, binning);
+                }
+                var parts = new List<string>();
+                var l = CameraParts(gain, offset, binning);
+                if (l.Length > 0) {
+                    parts.Add(Text.T("Plan_RowCameraL", l));
+                }
+                var rgb = CameraParts(rgbGain, rgbOffset, rgbBinning);
+                if (rgb.Length > 0) {
+                    parts.Add(Text.T("Plan_RowCameraRgb", rgb));
+                }
+                return string.Join(" · ", parts);
+            }
+        }
+
+        private static string CameraParts(int? gain, int? offset, string binning) {
+            var parts = new List<string>();
+            if (gain is int g) {
+                parts.Add(g == -1 ? Text.T("Plan_RowGainCamera") : Text.T("Plan_RowGain", g));
+            }
+            if (offset is int o) {
+                parts.Add(o == -1 ? Text.T("Plan_RowOffsetCamera") : Text.T("Plan_RowOffset", o));
+            }
+            if (binning != null) {
+                parts.Add(binning);
+            }
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>Whether the row's own values are shown; not saved.</summary>
         public bool IsExpanded {
             get => isExpanded;
             set {
@@ -208,16 +325,16 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             RaisePropertyChanged(nameof(WindowButtonText));
             RaisePropertyChanged(nameof(WindowText));
             RaisePropertyChanged(nameof(LimitsText));
+            RaisePropertyChanged(nameof(CameraText));
         }
 
         public WindowLimits Limits => new WindowLimits(thresholdOffset, minAltitude, WindowLimits.ParseClock(notBefore), WindowLimits.ParseClock(notAfter));
 
         public bool HasOwnWindow => priority || !Limits.IsNone;
 
-        /// <summary>The row's own window in a few words, empty when it has none.</summary>
-        public string WindowText => priority
-            ? string.Join(" · ", new[] { Text.T("Plan_RowPriority"), LimitsText }.Where(p => p.Length > 0))
-            : LimitsText;
+        /// <summary>The row's own values in a few words - priority, window, camera - empty when it has none.</summary>
+        public string WindowText =>
+            string.Join(" · ", new[] { priority ? Text.T("Plan_RowPriority") : string.Empty, LimitsText, CameraText }.Where(p => p.Length > 0));
 
         /// <summary>Its limits without the priority, for the outline.</summary>
         public string LimitsText {
@@ -244,13 +361,20 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         /// <summary>Only the saved values: a change rebuilds the plan, opening the settings does not.</summary>
         public static bool IsSaved(string propertyName) => propertyName is nameof(FilterName) or nameof(Count) or nameof(ExposureSeconds)
             or nameof(Ratio) or nameof(RgbExposureSeconds)
-            or nameof(Priority) or nameof(ThresholdOffset) or nameof(MinAltitude) or nameof(NotBefore) or nameof(NotAfter);
+            or nameof(Priority) or nameof(ThresholdOffset) or nameof(MinAltitude) or nameof(NotBefore) or nameof(NotAfter)
+            or nameof(Gain) or nameof(Offset) or nameof(Binning) or nameof(RgbGain) or nameof(RgbOffset) or nameof(RgbBinning);
 
         public FilterPlanRow Copy() => new FilterPlanRow {
             ExposureSeconds = ExposureSeconds,
             RgbExposureSeconds = RgbExposureSeconds,
             Ratio = Ratio,
+            RgbGain = RgbGain,
+            RgbOffset = RgbOffset,
+            RgbBinning = RgbBinning,
             FilterName = FilterName,
+            Gain = Gain,
+            Offset = Offset,
+            Binning = Binning,
             Count = Count,
             Priority = Priority,
             ThresholdOffset = ThresholdOffset,
@@ -290,6 +414,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             if (changed) {
                 RaisePropertyChanged(nameof(WindowText));
                 RaisePropertyChanged(nameof(LimitsText));
+                RaisePropertyChanged(nameof(CameraText));
                 RaisePropertyChanged(nameof(HasOwnWindow));
             }
         }

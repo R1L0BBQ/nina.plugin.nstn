@@ -73,6 +73,8 @@ namespace NINA.Plugin.Nstn.Checks {
         public Dictionary<string, DateTime> FirstCapture { get; } = new Dictionary<string, DateTime>();
         /// <summary>The filters of the exposures in the order they were taken.</summary>
         public List<string> CaptureOrder { get; } = new List<string>();
+        /// <summary>Gain, offset and binning the camera was asked for, per filter (all exposures of it).</summary>
+        public Dictionary<string, HashSet<string>> CaptureCamera { get; } = new Dictionary<string, HashSet<string>>();
         public NstnFilterPlan Plan { get; private set; }
         public NstnNightLeftCondition End { get; private set; }
         public NightPlan NightPlan { get; private set; }
@@ -184,6 +186,10 @@ namespace NINA.Plugin.Nstn.Checks {
                         CapturesPerFilter[filter] = CapturesPerFilter.TryGetValue(filter, out var n) ? n + 1 : 1;
                         FirstCapture.TryAdd(filter, NstnClock.UtcNow);
                         CaptureOrder.Add(filter);
+                        if (!CaptureCamera.TryGetValue(filter, out var seen)) {
+                            CaptureCamera[filter] = seen = new HashSet<string>();
+                        }
+                        seen.Add($"g{capture.Gain} o{capture.Offset} {capture.Binning?.Name}");
                     }
                     Note($"EXPOSURE {filter} {capture.ExposureTime} s (NSTN clock {NstnClock.UtcNow.ToLocalTime():HH:mm:ss})");
                     await Task.Delay(TimeSpan.FromSeconds(capture.ExposureTime), token);

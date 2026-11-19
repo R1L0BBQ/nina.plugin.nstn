@@ -123,6 +123,7 @@ namespace NINA.Plugin.Nstn.Checks {
                 OwnWindowChecks();
                 SunriseChecks(runs);
                 LrgbAndPriorityChecks(runs);
+                RowCameraChecks(runs);
                 if (runs) {
                     RunChecks();
                 }
@@ -736,6 +737,91 @@ namespace NINA.Plugin.Nstn.Checks {
                 && (g.CaptureOrder.Count < 12 || string.Join("", g.CaptureOrder.Skip(6).Take(6)) == "LLLRGB"), string.Join(" ", g.CaptureOrder));
             Check("run G: H-alpha waits while the L/RGB window is open", !g.CapturesPerFilter.ContainsKey("Ha"), string.Join(", ", g.CapturesPerFilter.Select(kv => $"{kv.Key} {kv.Value}")));
         }
+
+        // -------------------------------------------------------------------
+        // A row's own camera values: gain, offset, binning (L/RGB: L and RGB apart)
+        // -------------------------------------------------------------------
+
+        private static void RowCameraChecks(bool runs) {
+            Console.WriteLine();
+            Console.WriteLine("== A row's own camera values (gain, offset, binning; L/RGB: L and RGB apart) ==");
+            var site = SiteProfile(21.3, new[] { "L", "R", "G", "B", "Ha", "O3" }, LrgbAssignments);
+            var dso = TargetM33(site);
+            var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+            plan.Rows.Clear();
+            plan.Rows.Add(new FilterPlanRow { FilterName = "Ha", Gain = 100, Offset = 30, Binning = "2x2" });
+            plan.Rows.Add(new FilterPlanRow { FilterName = "O3" });
+            var set = LrgbRow("3:1:1:1", 60, 120);
+            set.Gain = 0;
+            set.RgbBinning = "2";
+            plan.Rows.Add(set);
+            dso.Add(plan);
+
+            Check("own values only where set: Ha, then L and RGB apart, O III as the plan",
+                Plain(plan.ActualStructure) == "Wait | Ha 5x300 @g100 o30 2x2 | O3 5x300 | LRGB L 3x60 @g0 o-1 1x1 R 1x120 @g-1 o-1 2x2 G 1x120 @g-1 o-1 2x2 B 1x120 @g-1 o-1 2x2 | End",
+                plan.ActualStructure);
+            Check("own values: children match the rows", plan.ActualStructure == plan.ExpectedStructure, plan.ExpectedStructure);
+            var ha = SeriesExposures(plan, 0).Single();
+            Check("Take Exposure of Ha carries gain 100, offset 30, 2x2", ha.Gain == 100 && ha.Offset == 30 && Equals(ha.Binning, new BinningMode(2, 2)),
+                $"g{ha.Gain} o{ha.Offset} {ha.Binning?.Name}");
+            var lrgb = SeriesExposures(plan, 2);
+            Check("L/RGB: L with gain 0 and 1x1, R, G, B with the plan's gain and 2x2",
+                lrgb[0].Gain == 0 && Equals(lrgb[0].Binning, new BinningMode(1, 1)) && lrgb.Skip(1).All(e => e.Gain == -1 && Equals(e.Binning, new BinningMode(2, 2))),
+                string.Join(" / ", lrgb.Select(e => $"g{e.Gain} {e.Binning?.Name}")));
+            Check("the row says so next to it", plan.Rows[0].WindowText == $"{Text.T("Plan_RowGain", 100)}, {Text.T("Plan_RowOffset", 30)}, 2x2",
+                plan.Rows[0].WindowText);
+            Check("... an L/RGB row for L and RGB", set.CameraText == $"{Text.T("Plan_RowCameraL", Text.T("Plan_RowGain", 0))} · {Text.T("Plan_RowCameraRgb", "2x2")}", set.CameraText);
+            Check("the outline names them", plan.Outline.Contains(plan.Rows[0].CameraText, StringComparison.Ordinal), plan.Outline);
+
+            // Changing a plan value keeps a row's own one, and the other rows follow the plan.
+            plan.Gain = 50;
+            Check("plan gain 50: Ha keeps 100, O III takes 50", SeriesExposures(plan, 0).Single().Gain == 100 && SeriesExposures(plan, 1).Single().Gain == 50,
+                plan.ActualStructure);
+            plan.Gain = -1;
+
+            // Unreadable input keeps the old value; empty clears it.
+            plan.Rows[0].Gain = -5;
+            plan.Rows[0].Binning = "abc";
+            Check("gain -5 and binning 'abc' keep the old values", plan.Rows[0].Gain == 100 && plan.Rows[0].Binning == "2x2", $"{plan.Rows[0].Gain} {plan.Rows[0].Binning}");
+            plan.Rows[0].Binning = "";
+            Check("an empty binning takes the plan's again", plan.Rows[0].Binning == null && Equals(SeriesExposures(plan, 0).Single().Binning, new BinningMode(1, 1)),
+                plan.Rows[0].Binning ?? "null");
+            plan.Rows[0].Binning = "2x2";
+
+            // Saved and loaded; rows without own values write none of the fields.
+            var root = new SequentialContainer { Name = "Root" };
+            root.Add(plan.Clone() as NstnFilterPlan);
+            var json = converter.Serialize(root);
+            var loaded = ((ISequenceContainer)converter.Deserialize(json)).Items.OfType<NstnFilterPlan>().Single();
+            Check("saved and loaded: own camera values", loaded.Rows[0].Gain == 100 && loaded.Rows[0].Offset == 30 && loaded.Rows[0].Binning == "2x2"
+                && loaded.Rows[2].Gain == 0 && loaded.Rows[2].RgbBinning == "2x2" && loaded.Rows[2].RgbGain == null, RowJson(json, "Ha"));
+            Check("saved and loaded: children match the rows", loaded.ActualStructure == loaded.ExpectedStructure, loaded.ActualStructure);
+            Check("a row without own camera values writes none", !Regex.IsMatch(RowJson(json, "O3"), "Gain|Offset|Binning"), RowJson(json, "O3"));
+            var back = LrgbRow("1:1:1:1", 60, 120);
+            back.RgbGain = 200;
+            back.FilterName = "Ha";
+            Check("a row switched back to one filter forgets the RGB values", back.RgbGain == null, $"{back.RgbGain}");
+
+            if (!runs) {
+                return;
+            }
+
+            // Run H: the values reach the camera - H-alpha with its own gain and binning, O III (Askar D1) with the plan's.
+            var h = PlanRun.Execute(Path.Combine(outDir, "run-h"), Night(5, 40, 0), TimeSpan.FromSeconds(12), roundsPerFilter: 1, imagesMissing: false, rows: new[] {
+                new FilterPlanRow { FilterName = "Askar D1", Count = 2, ExposureSeconds = 1 },
+                new FilterPlanRow { FilterName = "Ha", Count = 2, ExposureSeconds = 1, Gain = 100, Offset = 30, Binning = "2x2" },
+            });
+            h.WriteTimeline(Path.Combine(outDir, "run-h.txt"));
+            var seen = string.Join(" / ", h.CaptureCamera.Select(kv => $"{kv.Key}: {string.Join(", ", kv.Value)}"));
+            Console.WriteLine($"  run H (own camera values): {h.Captures} exposures, {seen}");
+            Check("run H: the camera gets H-alpha's own gain, offset and binning", h.CaptureCamera.TryGetValue("Ha", out var haSeen) && haSeen.SetEquals(new[] { "g100 o30 2x2" }), seen);
+            Check("run H: ... and the plan's for O III", h.CaptureCamera.TryGetValue("Askar D1", out var oSeen) && oSeen.SetEquals(new[] { "g-1 o-1 1x1" }), seen);
+        }
+
+        /// <summary>The Take Exposure items of a block, in order (one per series).</summary>
+        private static List<TakeExposure> SeriesExposures(NstnFilterPlan plan, int block) =>
+            plan.GetItemsSnapshot().OfType<ISequenceContainer>().ElementAt(block).GetItemsSnapshot().OfType<ISequenceContainer>()
+                .SelectMany(series => series.GetItemsSnapshot().OfType<TakeExposure>()).ToList();
 
         // -------------------------------------------------------------------
         // Sunrise: the coming night is shown, a run keeps the night it started in

@@ -127,14 +127,20 @@
                                             Opacity="0.8"
                                             Text="{Binding WindowText}" />
                                     </StackPanel>
-                                    <!--  The row's own window, folded away until asked for.  -->
+                                    <!--  The row's own values, folded away until asked for: its window, then its camera values.  -->
                                     <Border
                                         Margin="12,4,0,6"
                                         Padding="8,4,0,4"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="2,0,0,0"
                                         Visibility="{Binding IsExpanded, Converter={StaticResource NstnPlanRowVisibility}}">
+                                        <StackPanel Orientation="Vertical">
                                         <WrapPanel Orientation="Horizontal">
+                                            <TextBlock
+                                                MinWidth="70"
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"
+                                                Text="{nstn:T Plan_RowSectionWindow}" />
                                             <TextBlock
                                                 VerticalAlignment="Center"
                                                 Text="{nstn:T Plan_PriorityLabel}"
@@ -198,6 +204,81 @@
                                                 TextAlignment="Right"
                                                 ToolTip="{nstn:T Plan_TimeHint}" />
                                         </WrapPanel>
+                                        <!--  Camera values of the row; empty takes "for all exposures". An L/RGB row: L, then R, G and B.  -->
+                                        <WrapPanel Margin="0,6,0,0" Orientation="Horizontal" ToolTip="{nstn:T Plan_CameraHint}">
+                                            <TextBlock
+                                                MinWidth="70"
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"
+                                                Text="{nstn:T Plan_RowSectionCamera}" />
+                                            <TextBlock
+                                                Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Text="L"
+                                                Visibility="{Binding IsLrgb, Converter={StaticResource NstnPlanRowVisibility}}" />
+                                            <TextBlock VerticalAlignment="Center" Text="{nstn:T Plan_Gain}" />
+                                            <TextBox
+                                                MinWidth="45"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Gain, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                                TextAlignment="Right" />
+                                            <TextBlock
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{nstn:T Plan_Offset}" />
+                                            <TextBox
+                                                MinWidth="45"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Offset, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                                TextAlignment="Right" />
+                                            <TextBlock
+                                                Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{nstn:T Plan_Binning}" />
+                                            <ComboBox
+                                                MinWidth="60"
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                ItemsSource="{Binding DataContext.RowBinningChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                SelectedItem="{Binding Binning, TargetNullValue=''}" />
+                                            <!--  R, G and B of an L/RGB row  -->
+                                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsLrgb, Converter={StaticResource NstnPlanRowVisibility}}">
+                                                <TextBlock
+                                                    Margin="20,0,8,0"
+                                                    VerticalAlignment="Center"
+                                                    Text="RGB" />
+                                                <TextBlock VerticalAlignment="Center" Text="{nstn:T Plan_Gain}" />
+                                                <TextBox
+                                                    MinWidth="45"
+                                                    Margin="5,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Text="{Binding RgbGain, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                                    TextAlignment="Right" />
+                                                <TextBlock
+                                                    Margin="10,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Text="{nstn:T Plan_Offset}" />
+                                                <TextBox
+                                                    MinWidth="45"
+                                                    Margin="5,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Text="{Binding RgbOffset, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                                    TextAlignment="Right" />
+                                                <TextBlock
+                                                    Margin="10,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Text="{nstn:T Plan_Binning}" />
+                                                <ComboBox
+                                                    MinWidth="60"
+                                                    Margin="5,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    ItemsSource="{Binding DataContext.RowBinningChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    SelectedItem="{Binding RgbBinning, TargetNullValue=''}" />
+                                            </StackPanel>
+                                        </WrapPanel>
+                                        </StackPanel>
                                     </Border>
                                 </StackPanel>
                             </DataTemplate>

@@ -10,7 +10,7 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.10.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+Diese Anleitung beschreibt Version 0.11.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
 alle anderen Teile seit 0.6.0.
 
 ## Inhalt
@@ -172,8 +172,8 @@ Plan startet mit den ersten drei Filtern des Profils, je 5 × 300 s.
 
 | Feld | Bedeutung |
 |---|---|
-| Gain, Offset | für jede Aufnahme; −1 = Kamerastandard |
-| Binning | für jede Aufnahme |
+| Gain, Offset | für jede Aufnahme; −1 = Kamerastandard. Eine Zeile kann eigene Werte haben (siehe unten). |
+| Binning | für jede Aufnahme, ebenso je Zeile änderbar |
 | Sätze am Stück | Wie oft die Aufnahmen einer Zeile hintereinander laufen, bevor der nächste Filter kommt. **1 = Rundlauf**: jede Runde jeder Filter einmal. Mit **3** belichtet der Plan 3 × hintereinander denselben Filter (bei 5 × 300 s also 15 Aufnahmen) und wechselt erst dann. Das spart Filterwechsel und vor allem Autofokus-Läufe. Bis 0.8 hieß das Feld „Runden je Filter“. |
 | Abbruch nach Fehlschlägen in Folge | Der Plan endet, wenn so viele Aufnahmen hintereinander scheitern. Standard 3, **0 = nie**. Siehe [Was in der Nacht passiert](#was-in-der-nacht-passiert). |
 
@@ -206,12 +206,14 @@ Aufnahmen** (die Planwerte), **Ablauf** und die **Nacht**. Sie zeigen:
 > **Während der Plan läuft**, sind Zeilen und Planwerte gesperrt. Änderungen erst nach
 > dem Lauf oder nach einem Stopp.
 
-### Eigenes Fenster je Filter (ab 0.8.0)
+### Eigene Werte je Zeile (Fenster ab 0.8.0, Kamera ab 0.11.0)
 
 Normalerweise gilt für alle Zeilen dasselbe: die Schwellen und die Mindesthöhe aus den
-Plugin-Optionen und der Rundlauf. Über **„Eigenes Fenster“** neben einer Zeile lässt sich
-das für diesen einen Filter ändern. Die Einstellungen gelten zusätzlich: Ob der Himmel gut
-genug ist, rechnet NSTN weiterhin.
+Plugin-Optionen, der Rundlauf und die Kamerawerte aus „Für alle Aufnahmen“. Über
+**„Eigene Werte“** neben einer Zeile lässt sich das für diese eine Zeile ändern. Aufgeklappt
+stehen zwei Zeilen: **Fenster** und **Kamera**.
+
+**Fenster.** Die Einstellungen gelten zusätzlich: Ob der Himmel gut genug ist, rechnet NSTN weiterhin.
 
 | Feld | Wirkung | Beispiel |
 |---|---|---|
@@ -220,9 +222,18 @@ genug ist, rechnet NSTN weiterhin.
 | **Mindesthöhe** | Mindesthöhe des Ziels für diesen Filter; leer nimmt die Plugin-Optionen. | L 40°: Breitband erst, wenn das Ziel hoch steht. |
 | **nicht vor / nicht nach** | Ortszeit als HH:mm. Zeiten vor Mittag gehören zum Morgen danach. Leer heißt keine Grenze. | B nicht nach 01:00. |
 
-Neben der Zeile steht dann eine Kurzfassung, etwa „Vorrang · 0,3 mag strenger · ab 22:00 · bis 02:00“.
-Fensterzeile, Nachtplan und Gliederung rechnen mit diesen Werten. Ohne Einstellungen speichert
-der Plan genau wie bisher.
+**Kamera.** Gain, Offset und Binning nur für diese Zeile. Leer übernimmt den Wert aus „Für alle
+Aufnahmen“; Gain oder Offset −1 heißt Wert der Kamera.
+
+| Zeile | Felder | Beispiel |
+|---|---|---|
+| ein Filter | Gain, Offset, Binning | Ha mit Gain 100 und Offset 30, die anderen mit dem Planwert. |
+| L/RGB | einmal für L, einmal für R, G und B | L 1x1, RGB 2x2: Farbe gebinnt, Luminanz in voller Auflösung. |
+
+Neben der Zeile steht dann eine Kurzfassung, etwa „Vorrang · 0,3 mag strenger · ab 22:00 · bis 02:00“
+oder „Gain 100, Offset 30, 2x2“, bei L/RGB „L: Gain 0 · RGB: 2x2“. Fensterzeile, Nachtplan und
+Gliederung rechnen mit diesen Werten. Ändert sich ein Wert in „Für alle Aufnahmen“, behalten
+Zeilen mit eigenem Wert ihren. Ohne eigene Werte speichert der Plan genau wie bisher.
 
 > **Vorrang mit Augenmaß:** Eine Zeile mit Vorrang nimmt sich ihr ganzes Fenster. Ohne
 > strengere Schwelle oder Zeitspanne bekommen die anderen Filter dann oft nichts mehr. Am

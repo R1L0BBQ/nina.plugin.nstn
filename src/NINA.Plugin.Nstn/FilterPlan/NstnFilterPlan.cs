@@ -335,7 +335,8 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                         : roundsPerFilter == 1
                             ? Text.T("Plan_OutlineRowOnce", i + 2, r.Label)
                             : Text.T("Plan_OutlineRowRepeat", i + 2, r.Label, roundsPerFilter))
-                    + (r.Limits.IsNone ? string.Empty : " · " + r.LimitsText)));
+                    + (r.Limits.IsNone ? string.Empty : " · " + r.LimitsText)
+                    + (r.CameraText.Length == 0 ? string.Empty : " · " + r.CameraText)));
                 lines.Add(SettingsLine());
                 lines.Add(Text.T("Plan_OutlineEnd"));
                 if (stopAfterFailures > 0) {
@@ -466,7 +467,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                 for (var i = 0; i < LrgbChannels.Length; i++) {
                     if (parts[i] > 0) {
                         block.Add(new SwitchFilter(profileService, filterWheelMediator) { Filter = filters[i] });
-                        block.Add(Series(parts[i], i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds));
+                        block.Add(Series(parts[i], i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds, CameraOf(row, rgb: i > 0)));
                     }
                 }
                 window = new NstnWindowCondition(profileService) {
@@ -476,7 +477,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                 };
             } else {
                 block.Add(new SwitchFilter(profileService, filterWheelMediator) { Filter = ResolveFilter(row.FilterName) });
-                block.Add(Series(row.Count, row.ExposureSeconds));
+                block.Add(Series(row.Count, row.ExposureSeconds, CameraOf(row, rgb: false)));
                 window = new NstnWindowCondition(profileService) { FilterPreset = NstnWindowCondition.BlockFilter };
             }
             window.Name = Text.T("Name_Condition");
@@ -492,18 +493,36 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             return block;
         }
 
-        /// <summary>A series of one filter: Take Exposure with the plan's values, repeated.</summary>
-        private SequentialContainer Series(int count, double exposureSeconds) {
+        /// <summary>A series of one filter: Take Exposure with the given camera values, repeated.</summary>
+        private SequentialContainer Series(int count, double exposureSeconds, (int Gain, int Offset, BinningMode Binning) camera) {
             var series = new SequentialContainer { Name = $"{count} × {exposureSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s" };
             series.Add(new TakeExposure(profileService, cameraMediator, imagingMediator, imageSaveMediator, imageHistoryVM) {
                 ExposureTime = exposureSeconds,
-                Gain = gain,
-                Offset = offset,
-                Binning = new BinningMode(binning.X, binning.Y),
+                Gain = camera.Gain,
+                Offset = camera.Offset,
+                Binning = new BinningMode(camera.Binning.X, camera.Binning.Y),
             });
             series.Add(new LoopCondition { Iterations = count });
             return series;
         }
+
+        /// <summary>The camera values of a row's series: its own where set, else the plan's.</summary>
+        private (int Gain, int Offset, BinningMode Binning) CameraOf(FilterPlanRow row, bool rgb) => (
+            (rgb ? row.RgbGain : row.Gain) ?? gain,
+            (rgb ? row.RgbOffset : row.Offset) ?? offset,
+            row.BinningOf(rgb) ?? binning);
+
+        /// <summary>
+        /// A series' camera values in the structure text, only where they differ from the
+        /// plan's (" @g100 o30 2x2"): plans without own values keep their text.
+        /// </summary>
+        private string Own(int seriesGain, int seriesOffset, BinningMode seriesBinning) =>
+            seriesGain == gain && seriesOffset == offset && Equals(seriesBinning, binning)
+                ? string.Empty
+                : FormattableString.Invariant($" @g{seriesGain} o{seriesOffset} {seriesBinning?.Name}");
+
+        /// <summary>The binning choices of a row: empty for the plan's, then the camera's.</summary>
+        public IReadOnlyList<string> RowBinningChoices => new[] { string.Empty }.Concat(BinningModes.Select(m => m.Name)).ToList();
 
         /// <summary>
         /// Whether a block must give way now: an open priority block above it takes over
@@ -539,12 +558,17 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         /// <summary>"Ha 5x300"; an L/RGB set "LRGB L 3x60 R 1x120 G 1x120 B 1x120".</summary>
         private string ExpectedSeries(FilterPlanRow row) {
             if (!row.IsLrgb) {
-                return $"{ResolveFilter(row.FilterName)?.Name ?? "-"} {row.Count}x{row.ExposureSeconds.ToString("R", CultureInfo.InvariantCulture)}";
+                var single = CameraOf(row, rgb: false);
+                return $"{ResolveFilter(row.FilterName)?.Name ?? "-"} {row.Count}x{row.ExposureSeconds.ToString("R", CultureInfo.InvariantCulture)}"
+                    + Own(single.Gain, single.Offset, single.Binning);
             }
             var filters = LrgbFilters();
             var parts = row.RatioParts;
-            return "LRGB" + string.Concat(Enumerable.Range(0, LrgbChannels.Length).Where(i => parts[i] > 0).Select(i =>
-                $" {filters[i]?.Name ?? "-"} {parts[i]}x{(i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds).ToString("R", CultureInfo.InvariantCulture)}"));
+            return "LRGB" + string.Concat(Enumerable.Range(0, LrgbChannels.Length).Where(i => parts[i] > 0).Select(i => {
+                var camera = CameraOf(row, rgb: i > 0);
+                return $" {filters[i]?.Name ?? "-"} {parts[i]}x{(i == 0 ? row.ExposureSeconds : row.RgbExposureSeconds).ToString("R", CultureInfo.InvariantCulture)}"
+                    + Own(camera.Gain, camera.Offset, camera.Binning);
+            }));
         }
 
         /// <summary>"r-" for a block without an iteration limit (priority).</summary>
@@ -583,7 +607,6 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                     }
                     var rounds = gates.Count == 2 ? (LoopCondition)gates[1] : null;
                     text.Append(isSet ? " | LRGB" : " |");
-                    TakeExposure first = null;
                     for (var i = 0; i < inner.Count; i += 2) {
                         if (inner[i] is not SwitchFilter switchFilter || inner[i + 1].GetType() != typeof(SequentialContainer)) {
                             return "?block items";
@@ -594,13 +617,11 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                         if (exposures.Count != 1 || exposures[0] is not TakeExposure exposure || loop.Count != 1 || loop[0] is not LoopCondition count) {
                             return "?series";
                         }
-                        first ??= exposure;
-                        if (exposure.Gain != first.Gain || exposure.Offset != first.Offset || !Equals(exposure.Binning, first.Binning)) {
-                            return "?series settings";
-                        }
+                        // A series' own camera values show where they differ from the plan's.
                         text.Append($" {switchFilter.Filter?.Name ?? "-"} {count.Iterations}x{exposure.ExposureTime.ToString("R", CultureInfo.InvariantCulture)}");
+                        text.Append(Own(exposure.Gain, exposure.Offset, exposure.Binning));
                     }
-                    text.Append(Settings(first.Gain, first.Offset, first.Binning, rounds?.Iterations));
+                    text.Append(Settings(gain, offset, binning, rounds?.Iterations));
                     text.Append(Window(window.Limits));
                 }
                 var own = GetConditionsSnapshot().ToList();

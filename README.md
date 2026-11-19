@@ -561,7 +561,25 @@ Die englischen Texte sind entsprechend nachgezogen.
 | `build.ps1` | 263/263 |
 | `tests\Run-NinaChecks.ps1 -NoRuns` | 145/145 (nur die Vorlage geändert; die Läufe sind unverändert seit 0.10.0, 174/174) |
 
-## Bekannte Grenzen (Stand 0.10.1)
+## 0.11.0 (19.11.2026)
+
+**Kamerawerte je Zeile** (Marcs Wunsch; Entscheidungen: Gain, Offset, Binning; bei L/RGB getrennt für L und RGB; im Aufklappbereich).
+- Der Knopf heißt jetzt „Eigene Werte“. Aufgeklappt stehen die Zeile **Fenster** (Vorrang, Schwelle, Mindesthöhe, Zeitspanne) und die Zeile **Kamera** (Gain, Offset, Binning). Bei L/RGB gibt es einen Satz für L und einen für R, G und B.
+- Leer übernimmt den Wert aus „Für alle Aufnahmen“; −1 heißt Wert der Kamera. Binning „2x2“, „2X2“ oder „2“; Unlesbares behält den alten Wert.
+- Ändert sich ein Planwert, behalten Zeilen mit eigenem Wert ihren.
+- Kurzfassung neben der Zeile und in der Gliederung, etwa „Gain 100, Offset 30, 2x2“ oder „L: Gain 0 · RGB: 2x2“.
+- Gespeichert werden `Gain`, `Offset`, `Binning`, `RgbGain`, `RgbOffset`, `RgbBinning` nur, wenn gesetzt. Pläne ohne eigene Werte bleiben byte-gleich (Golddatei unverändert).
+- Strukturtext: Eine Serie mit abweichenden Werten trägt „ @g100 o30 2x2“. Damit erkennt der Plan auch weiterhin von Hand geänderte Aufnahmen und baut sie neu.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 263/263 |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 190/190. Neu: Aufbau mit eigenen Werten (Ha; L und RGB getrennt), Take Exposure trägt sie, Kurzfassung und Gliederung, Planwert ändert nur Zeilen ohne eigenen Wert, ungültige Eingaben, leeres Binning, Speichern/Laden, keine Felder ohne eigene Werte, Rückweg zur Einzelzeile. **Lauf H:** Die Kamera bekommt für Hα Gain 100, Offset 30, 2x2, für O III die Planwerte. Gegenprobe ohne die eigenen Werte: 4 Prüfungen fallen |
+| Abgeschottete N.I.N.A. 3.2 | Aufgeklappt (Zwischenfassung mit aufgeklappten Zeilen, danach zurückgebaut): Fenster- und Kamerazeile, bei L/RGB „L Gain/Offset/Binning · RGB Gain/Offset/Binning“; Beschriftungen 7,4:1 |
+
+**Zwischenfall beim Prüfen:** Die Gegenprobe ersetzte zwei Zeilen in derselben Datei. Das Prüfskript sicherte beim zweiten Mal den schon halb mutierten Text, und der Rückbau meldete fälschlich „byte-gleich“. Die Gain-Mutante blieb im Quelltext, ebenso in der Zwischenfassung für das Bild (das Layout betrifft sie nicht). Der Abschlusslauf auf genau diesem Stand fiel rot aus (5 Prüfungen); behoben und erneut geprüft: 190/190. Paket-DLL und geprüfte DLL sind identisch (SHA-256 `4874a817…`). Nichts davon war installiert oder committet.
+
+## Bekannte Grenzen (Stand 0.11.0)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.
