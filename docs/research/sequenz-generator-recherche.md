@@ -5,8 +5,8 @@ Stand 18.11.2026 · Bezug NSTN 0.6.0, N.I.N.A. 3.2.0.9001 · reine Recherche, ni
 **Vorgehen:** Websuche, Abruf der Seiten, AstroBin und Cloudy Nights im eingebauten Browser gelesen,
 ohne Anmeldung. AstroBin zeigt Beiträge maschinell ins Deutsche übersetzt, Zitate von dort sind
 deshalb sinngemäß. Reddit war nicht erreichbar, weil Suchdienst und Browser die Domain sperren.
-Discord wurde nicht durchsucht. NINA-Verhalten ist am Quelltext belegt: Klon
-`C:\Claude\_scratch\nina-src-3.2`, Tag `Version-3.2`, Pfade unten relativ dazu.
+Discord wurde nicht durchsucht. NINA-Verhalten ist am Quelltext belegt: lokaler Klon von
+N.I.N.A., Tag `Version-3.2`, Pfade unten relativ dazu.
 Häufigkeit in Abschnitt 2 = Zahl unabhängiger Fundstellen in dieser Recherche. Das ist keine
 Statistik.
 
