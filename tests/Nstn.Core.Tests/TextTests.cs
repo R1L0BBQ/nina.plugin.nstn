@@ -61,6 +61,25 @@ namespace Nstn.Core.Tests {
             Assert.Contains("de", Text.Languages);
         }
 
+        /// <summary>
+        /// A key written twice is silently read once: a new label "Plan_Priority" hid the
+        /// night plan's sentence of the same name, and the label showed that sentence.
+        /// </summary>
+        [Fact]
+        public void NoKeyIsWrittenTwice() {
+            foreach (var file in Directory.EnumerateFiles(Path.Combine(RepositoryRoot(), "src", "Nstn.Core", "Strings"), "*.json")) {
+                var reader = new System.Text.Json.Utf8JsonReader(File.ReadAllBytes(file));
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                var twice = new List<string>();
+                while (reader.Read()) {
+                    if (reader.TokenType == System.Text.Json.JsonTokenType.PropertyName && reader.CurrentDepth == 1 && !seen.Add(reader.GetString()!)) {
+                        twice.Add(reader.GetString()!);
+                    }
+                }
+                Assert.True(twice.Count == 0, $"{Path.GetFileName(file)}: {string.Join(", ", twice)}");
+            }
+        }
+
         [Fact]
         public void EveryLanguageHasExactlyTheEnglishKeys() {
             foreach (var language in Text.Languages) {

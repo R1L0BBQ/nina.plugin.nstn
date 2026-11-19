@@ -258,6 +258,20 @@ namespace Nstn.Core.Tests {
             Assert.Empty(Check(target));
         }
 
+        /// <summary>A row with priority has no iteration limit on purpose: no advice to add one.</summary>
+        [Fact]
+        public void APriorityRowOfAFilterPlanIsNoFinding() {
+            var plan = Plan("NSTN filter plan", 1, "OIII", "Ha");
+            plan.Children.Insert(1, Container("SII: 5 × 300 s", FollowingBlockFilter, Switch("SII"),
+                Container("5 × 300 s", Iterations, Exposure("SII"))));
+            Assert.Empty(Check(Container("M33", SeqTriggerKind.MeridianFlip, Slew, plan)));
+
+            // Control: the same block in a loop built by hand is pointed out.
+            var byHand = Container("M33", SeqTriggerKind.MeridianFlip, Slew,
+                Container("Loop", UntilTime, Wait, Block("Block SII", "SII"), Block("Block Ha", "Ha", Iterations)));
+            Assert.Contains(Check(byHand), f => f.Level == FindingLevel.Hint && f.Message.Contains("Block SII", StringComparison.Ordinal));
+        }
+
         [Fact]
         public void RoundRobinWithAutofocusAfterEveryFilterChangeIsPointedOut() {
             var target = Container("M33", SeqTriggerKind.MeridianFlip, SeqTriggerKind.AutofocusAfterFilterChange, Slew,

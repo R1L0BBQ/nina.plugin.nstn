@@ -188,7 +188,8 @@ namespace Nstn.Core {
                 hint(Text.T("Check_WaitNotFirst", Text.Quote(loop.Name)));
             }
 
-            if (blocks.Count > 1) {
+            // In a filter plan a block without an iteration limit is a row with priority, chosen on purpose.
+            if (blocks.Count > 1 && !loop.IsFilterPlan) {
                 foreach (var block in blocks.Where(b => b.Conditions.All(c => c.Kind != SeqConditionKind.LoopForIterations))) {
                     hint(Text.T("Check_Priority", Describe(block)));
                 }

@@ -10,7 +10,7 @@ damit zur Laufzeit, welcher Filter gerade lohnt. Eingerechnet werden:
 
 Statt fester Uhrzeiten, die nur für eine Nacht stimmen, gilt eine NSTN-Sequenz in jeder Nacht.
 
-Diese Anleitung beschreibt Version 0.7.1. Den **NSTN-Filterplan** gibt es seit 0.7.0,
+Diese Anleitung beschreibt Version 0.8.0. Den **NSTN-Filterplan** gibt es seit 0.7.0,
 alle anderen Teile seit 0.6.0.
 
 ## Inhalt
@@ -86,6 +86,12 @@ Knopf übernommen, entweder einzeln oder mit „Vorschläge für nicht zugeordne
 > sie offen, lohnt der Filter. Wie du die Hα-Linie länger nutzt, steht
 > unter [Duo-Filter an der Farbkamera](#duo-filter-an-der-farbkamera).
 
+> **Filtersätze:** Wählst du einen Satz mit mehreren Linien, etwa „Astronomik (6 nm)“, nimmt
+> NSTN die Linie aus dem Filternamen: „S2“ wird S II, „O3“ wird O III. Steht im Namen keine
+> Linie, wähle sie selbst. Passt eine gespeicherte Linie nicht zum Namen, steht hinter der
+> Zuordnung „prüfen: der Filtername nennt S II, eingestellt ist Hα“. Ein so falsch
+> zugeordneter Filter bekommt die Fenster der falschen Linie.
+
 Hast du einen Filter umbenannt, klicke auf „Filterliste neu laden“.
 
 ### 3. Sprache
@@ -154,12 +160,13 @@ Plan startet mit den ersten drei Filtern des Profils, je 5 × 300 s.
 | Runden je Filter | Wie oft ein Filter dran ist, bevor der nächste kommt. **1 = Rundlauf**: jede Runde jeder Filter einmal. Mit **3** belichtet der Plan 3 × hintereinander denselben Filter und wechselt erst dann. Das spart Filterwechsel und vor allem Autofokus-Läufe. |
 | Abbruch nach Fehlschlägen in Folge | Der Plan endet, wenn so viele Aufnahmen hintereinander scheitern. Standard 3, **0 = nie**. Siehe [Was in der Nacht passiert](#was-in-der-nacht-passiert). |
 
-Unter den Feldern zeigt der Plan:
+Der Plan ist in vier Abschnitte gegliedert: **Filter je Runde** (die Zeilen), **Für alle
+Aufnahmen** (die Planwerte), **Ablauf** und **Heute Nacht**. Sie zeigen:
 
-- **Gliederung:** was aus den Zeilen gebaut wird, zum Beispiel „2. Askar D1: 5 × 300 s,
-  solange sein NSTN-Fenster offen ist, einmal je Runde“.
-- **Endezeile:** wie lange der Plan läuft, etwa „Läuft, bis das letzte Fenster schließt (05:52)“.
-- **je Zeile das Fenster heute Nacht und den Zustand jetzt:**
+- **Ablauf:** Neben dem Knopf steht immer die Endezeile, also wie lange der Plan läuft, etwa „Läuft, bis das
+  letzte Fenster schließt (05:52)“. Der Knopf klappt die Gliederung auf: was aus den Zeilen gebaut
+  wird, zum Beispiel „2. Askar D1: 5 × 300 s, solange sein NSTN-Fenster offen ist, einmal je Runde“.
+- **Heute Nacht**, je Zeile das Fenster heute Nacht und darunter blasser den Zustand jetzt:
   „Ha: 5 × 300 s – Heute Nacht (18. Nov.): 18:42–21:02, 01:08–06:04 · 7 h 16 min /
   Zu, öffnet 18:42 · Himmel im Band 5,19, nötig 23,10“.
 - **Nachtplan:** eine Zeitleiste je Zeile. Blass ist das Fenster, kräftig die geschätzten
@@ -174,6 +181,28 @@ Unter den Feldern zeigt der Plan:
 
 > **Während der Plan läuft**, sind Zeilen und Planwerte gesperrt. Änderungen erst nach
 > dem Lauf oder nach einem Stopp.
+
+### Eigenes Fenster je Filter (ab 0.8.0)
+
+Normalerweise gilt für alle Zeilen dasselbe: die Schwellen und die Mindesthöhe aus den
+Plugin-Optionen und der Rundlauf. Über **„Eigenes Fenster“** neben einer Zeile lässt sich
+das für diesen einen Filter ändern. Die Einstellungen gelten zusätzlich: Ob der Himmel gut
+genug ist, rechnet NSTN weiterhin.
+
+| Feld | Wirkung | Beispiel |
+|---|---|---|
+| **Vorrang** | Die Zeile läuft vor den anderen und behält ihr Fenster, solange es offen ist. Die anderen Zeilen laufen nur, während es zu ist. | O III mit Vorrang: Jede dunkle Minute, in der O III lohnt, geht an O III. |
+| **Schwelle** | Wird zur Schwelle der Plugin-Optionen addiert, in mag/arcsec². Plus heißt strenger, das Fenster wird kürzer und liegt im dunkelsten Teil der Nacht. Minus heißt lockerer, das Fenster wird länger. | O III +0,3: nur bei sehr dunklem Himmel. Hα −0,3: auch noch bei mehr Mond. |
+| **Mindesthöhe** | Mindesthöhe des Ziels für diesen Filter; leer nimmt die Plugin-Optionen. | L 40°: Breitband erst, wenn das Ziel hoch steht. |
+| **nicht vor / nicht nach** | Ortszeit als HH:mm. Zeiten vor Mittag gehören zum Morgen danach. Leer heißt keine Grenze. | B nicht nach 01:00. |
+
+Neben der Zeile steht dann eine Kurzfassung, etwa „Vorrang · 0,3 mag strenger · ab 22:00 · bis 02:00“.
+Fensterzeile, Nachtplan und Gliederung rechnen mit diesen Werten. Ohne Einstellungen speichert
+der Plan genau wie bisher.
+
+> **Vorrang mit Augenmaß:** Eine Zeile mit Vorrang nimmt sich ihr ganzes Fenster. Ohne
+> strengere Schwelle oder Zeitspanne bekommen die anderen Filter dann oft nichts mehr. Am
+> besten kombinierst du Vorrang mit einer engen Schwelle oder Zeitspanne.
 
 ### Beispiele für die Gewichtung
 

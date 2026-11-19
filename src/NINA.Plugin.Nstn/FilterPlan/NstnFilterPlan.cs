@@ -103,6 +103,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             this.filterWheelMediator = filterWheelMediator;
 
             AddRowCommand = new ActionCommand(AddRow);
+            ToggleOutlineCommand = new ActionCommand(() => ShowOutline = !ShowOutline);
             RemoveRowCommand = new ParameterCommand<FilterPlanRow>(row => Rows.Remove(row));
             PropertyChanged += OnOwnPropertyChanged;
 
@@ -135,6 +136,10 @@ namespace NINA.Plugin.Nstn.FilterPlan {
 
         public void LanguageChanged() {
             RaisePropertyChanged(nameof(Outline));
+            RaisePropertyChanged(nameof(OutlineButtonText));
+            foreach (var row in Rows) {
+                row.LanguageChanged();
+            }
             if (Parent != null) {
                 Validate();
             }
@@ -148,6 +153,22 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         public ObservableCollection<FilterPlanRow> Rows { get; private set; }
 
         public ICommand AddRowCommand { get; }
+
+        private bool showOutline;
+
+        /// <summary>Whether the outline of the steps is shown; folded by default, not saved.</summary>
+        public bool ShowOutline {
+            get => showOutline;
+            private set {
+                showOutline = value;
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(OutlineButtonText));
+            }
+        }
+
+        public ICommand ToggleOutlineCommand { get; }
+
+        public string OutlineButtonText => (showOutline ? "▾ " : "▸ ") + Text.T("Plan_Steps");
 
         public ICommand RemoveRowCommand { get; }
 
@@ -182,7 +203,11 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             RowsEdited();
         }
 
-        private void OnRowChanged(object sender, PropertyChangedEventArgs e) => RowsEdited();
+        private void OnRowChanged(object sender, PropertyChangedEventArgs e) {
+            if (FilterPlanRow.IsSaved(e.PropertyName)) {
+                RowsEdited();
+            }
+        }
 
         private void RowsEdited() {
             if (loading) {
@@ -302,9 +327,12 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         public string Outline {
             get {
                 var lines = new List<string> { Text.T("Plan_OutlineWait") };
-                lines.AddRange(Rows.Select((r, i) => roundsPerFilter == 1
-                    ? Text.T("Plan_OutlineRowOnce", i + 2, r.Label)
-                    : Text.T("Plan_OutlineRowRepeat", i + 2, r.Label, roundsPerFilter)));
+                lines.AddRange(RunOrder().Select((r, i) => (r.Priority
+                        ? Text.T("Plan_OutlineRowPriority", i + 2, r.Label)
+                        : roundsPerFilter == 1
+                            ? Text.T("Plan_OutlineRowOnce", i + 2, r.Label)
+                            : Text.T("Plan_OutlineRowRepeat", i + 2, r.Label, roundsPerFilter))
+                    + (r.Limits.IsNone ? string.Empty : " · " + r.LimitsText)));
                 lines.Add(Text.T("Plan_OutlineSettings", CameraValue(gain), CameraValue(offset), binning.Name));
                 lines.Add(Text.T("Plan_OutlineEnd"));
                 if (stopAfterFailures > 0) {
@@ -341,6 +369,14 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             RaisePropertyChanged(nameof(Waiter));
             RaisePropertyChanged(nameof(Windows));
             RaisePropertyChanged(nameof(RowsText));
+
+            // The waiting instruction planned when it was added, before the blocks after it;
+            // Night Info shows the bands of the target. Both refresh only every 20 s on their own.
+            waiter?.RefreshPlanSoon();
+            var target = Parent == null ? null : SequenceTree.TargetOf(Parent);
+            foreach (var info in target?.GetItemsSnapshot().OfType<NstnNightInfo>() ?? Enumerable.Empty<NstnNightInfo>()) {
+                info.RecalculateSoon();
+            }
         }
 
         // -------------------------------------------------------------------
@@ -371,7 +407,7 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             }
 
             Add(new NstnWaitForWindow(profileService) { Name = Text.T("Name_Wait") });
-            foreach (var row in Rows) {
+            foreach (var row in RunOrder()) {
                 Add(BuildBlock(row));
             }
             Add(new NstnNightLeftCondition { Name = Text.T("Name_NightLeft") });
@@ -381,6 +417,12 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             RaisePropertyChanged(nameof(Outline));
             Validate();
         }
+
+        /// <summary>
+        /// The rows in the order their blocks run: rows with priority first, each keeping
+        /// its window while it is open; then the round robin. Otherwise as in the table.
+        /// </summary>
+        private IEnumerable<FilterPlanRow> RunOrder() => Rows.Where(r => r.Priority).Concat(Rows.Where(r => !r.Priority));
 
         private SequentialContainer BuildBlock(FilterPlanRow row) {
             var seconds = row.ExposureSeconds.ToString("0.###", CultureInfo.InvariantCulture);
@@ -400,8 +442,15 @@ namespace NINA.Plugin.Nstn.FilterPlan {
             block.Add(new NstnWindowCondition(profileService) {
                 Name = Text.T("Name_Condition"),
                 FilterPreset = NstnWindowCondition.BlockFilter,
+                ThresholdOffset = row.ThresholdOffset,
+                MinAltitude = row.MinAltitude,
+                NotBefore = row.NotBefore,
+                NotAfter = row.NotAfter,
             });
-            block.Add(new LoopCondition { Iterations = roundsPerFilter });
+            // Without an iteration limit a block keeps its window while it is open: priority.
+            if (!row.Priority) {
+                block.Add(new LoopCondition { Iterations = roundsPerFilter });
+            }
             return block;
         }
 
@@ -410,12 +459,16 @@ namespace NINA.Plugin.Nstn.FilterPlan {
         /// when the children are exactly what <see cref="Rebuild"/> makes of the rows.
         /// </summary>
         public string ExpectedStructure =>
-            "Wait" + string.Concat(Rows.Select(r =>
+            "Wait" + string.Concat(RunOrder().Select(r =>
                 $" | {ResolveFilter(r.FilterName)?.Name ?? "-"} {r.Count}x{r.ExposureSeconds.ToString("R", CultureInfo.InvariantCulture)}"
-                + Settings(gain, offset, binning, roundsPerFilter))) + " | End";
+                + Settings(gain, offset, binning, r.Priority ? null : roundsPerFilter) + Window(r.Limits))) + " | End";
 
-        private static string Settings(int gain, int offset, BinningMode binning, int rounds) =>
-            FormattableString.Invariant($" g{gain} o{offset} {binning?.Name} r{rounds}");
+        /// <summary>"r-" for a block without an iteration limit (priority).</summary>
+        private static string Settings(int gain, int offset, BinningMode binning, int? rounds) =>
+            FormattableString.Invariant($" g{gain} o{offset} {binning?.Name} r{(rounds is int r ? r.ToString(CultureInfo.InvariantCulture) : "-")}");
+
+        private static string Window(WindowLimits limits) => limits.IsNone ? string.Empty
+            : FormattableString.Invariant($" w{limits.ThresholdOffset:+0.##;-0.##;0}/{limits.MinAltitudeDeg?.ToString("0.#", CultureInfo.InvariantCulture) ?? "-"}/{limits.NotBefore?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? "-"}-{limits.NotAfter?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? "-"}");
 
         public string ActualStructure {
             get {
@@ -434,10 +487,12 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                     if (inner.Count != 2 || inner[0] is not SwitchFilter switchFilter || inner[1].GetType() != typeof(SequentialContainer)) {
                         return "?block items";
                     }
-                    if (gates.Count != 2 || gates[0] is not NstnWindowCondition window || window.FilterPreset != NstnWindowCondition.BlockFilter
-                            || gates[1] is not LoopCondition rounds || block.GetTriggersSnapshot().Count != 0) {
+                    // One turn per round with "Loop For Iterations", priority without it.
+                    if (gates.Count is < 1 or > 2 || gates[0] is not NstnWindowCondition window || window.FilterPreset != NstnWindowCondition.BlockFilter
+                            || (gates.Count == 2 && gates[1] is not LoopCondition) || block.GetTriggersSnapshot().Count != 0) {
                         return "?block conditions";
                     }
+                    var rounds = gates.Count == 2 ? (LoopCondition)gates[1] : null;
                     var series = (SequentialContainer)inner[1];
                     var exposures = series.GetItemsSnapshot().ToList();
                     var loop = series.GetConditionsSnapshot().ToList();
@@ -445,7 +500,8 @@ namespace NINA.Plugin.Nstn.FilterPlan {
                         return "?series";
                     }
                     text.Append($" | {switchFilter.Filter?.Name ?? "-"} {count.Iterations}x{exposure.ExposureTime.ToString("R", CultureInfo.InvariantCulture)}");
-                    text.Append(Settings(exposure.Gain, exposure.Offset, exposure.Binning, rounds.Iterations));
+                    text.Append(Settings(exposure.Gain, exposure.Offset, exposure.Binning, rounds?.Iterations));
+                    text.Append(Window(window.Limits));
                 }
                 var own = GetConditionsSnapshot().ToList();
                 if (own.Count != 1 || own[0] is not NstnNightLeftCondition || GetTriggersSnapshot().Count != 0) {

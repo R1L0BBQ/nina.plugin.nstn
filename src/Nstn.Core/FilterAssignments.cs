@@ -124,6 +124,14 @@ namespace Nstn.Core {
             return lines.Count == 1 ? lines[0] : null;
         }
 
+        /// <summary>
+        /// The one line a filter's name names ("S2" → SII, "OIII 6nm" → OIII), or null.
+        /// Unlike <see cref="Suggest"/> it needs no bandwidth: it picks the line within a
+        /// filter set the user chose, it does not invent a filter.
+        /// </summary>
+        public static string? LineInName(string? ninaName) =>
+            string.IsNullOrWhiteSpace(ninaName) ? null : SingleLine(ninaName);
+
         // ------------------------------------------------------------------
         // storage: a JSON array in the plugin settings of the profile
         // ------------------------------------------------------------------

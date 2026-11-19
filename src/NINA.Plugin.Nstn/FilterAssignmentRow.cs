@@ -56,8 +56,10 @@ namespace NINA.Plugin.Nstn {
                 choice = value;
                 var preset = FilterCatalog.Find(choice);
                 if (preset != null) {
-                    // As in the condition: a duo starts on its weak line, a set keeps the line if it has it.
-                    var entry = preset.WeakLine ?? preset.Find(line) ?? preset.Lines[0];
+                    // A duo starts on its weak line. A set takes the line the filter's name
+                    // names ("S2" in an Astronomik set is its S II), else keeps the line if it has it.
+                    var named = FilterAssignments.LineInName(NinaName);
+                    var entry = preset.WeakLine ?? (named == null ? null : preset.Find(named)) ?? preset.Find(line) ?? preset.Lines[0];
                     line = entry.Line;
                     bandwidthNm = entry.BandwidthNm;
                 } else if (choice == Custom && line == Bands.Broadband) {
@@ -117,7 +119,12 @@ namespace NINA.Plugin.Nstn {
             get {
                 var assignment = ToAssignment();
                 if (assignment != null) {
-                    return "→ " + assignment.Describe();
+                    // A saved "S2 = H-alpha" rates S II with the H-alpha window: say so.
+                    var named = FilterAssignments.LineInName(NinaName);
+                    var remark = named != null && named != assignment.Line
+                        ? Text.T("Assign_NameMismatch", Bands.ShortLabel(named), Bands.ShortLabel(assignment.Line))
+                        : string.Empty;
+                    return "→ " + assignment.Describe() + remark;
                 }
                 return choice == Custom ? Text.T("Assign_EnterBandwidth") : string.Empty;
             }

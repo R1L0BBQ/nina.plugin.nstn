@@ -98,6 +98,9 @@ namespace NINA.Plugin.Nstn.Checks {
                 FailureChecks();
                 GoldenChecks();
                 NeverAtSiteChecks();
+                PlanFollowsRowsChecks();
+                AssignmentChecks();
+                OwnWindowChecks();
                 if (runs) {
                     RunChecks();
                 }
@@ -423,23 +426,8 @@ namespace NINA.Plugin.Nstn.Checks {
             Console.WriteLine("== Never opens at this site (broadband and narrowband text) ==");
             // SQM 20.5 is below the broadband threshold 20.6; at 17.0 H-alpha 7 nm cannot reach 23.1 in band either.
             foreach (var (line, sqm, key) in new[] { (Bands.Broadband, 20.5, "Cond_NeverAtSiteBroadband"), ("Ha", 17.0, "Cond_NeverAtSite") }) {
-                var site = Stub.Create<IProfileService>();
-                var p = site.ActiveProfile;
-                p.AstrometrySettings.Latitude = 49.8;
-                p.AstrometrySettings.Longitude = 6.6;
-                ((Stub)(object)p.PluginSettings).Handler = (method, a) => {
-                    if (method.Name != "TryGetValue" || (string)a[1] != "SkyQuality") {
-                        return method.Name == "TryGetValue" ? false : Stub.NotHandled;
-                    }
-                    a[2] = sqm;
-                    return true;
-                };
-                var dso = SequenceWriter.Construct<DeepSkyObjectContainer>(site);
-                dso.Target = new NINA.Astrometry.InputTarget(NINA.Astrometry.Angle.ByDegree(49.8), NINA.Astrometry.Angle.ByDegree(6.6), null) {
-                    TargetName = "M 33",
-                    InputCoordinates = new NINA.Astrometry.InputCoordinates(new NINA.Astrometry.Coordinates(
-                        NINA.Astrometry.Angle.ByHours(1.5639), NINA.Astrometry.Angle.ByDegree(30.66), NINA.Astrometry.Epoch.J2000)),
-                };
+                var site = SiteProfile(sqm);
+                var dso = TargetM33(site);
                 var condition = new NstnWindowCondition(site) { Line = line, BandwidthNm = 7 };
                 var block = new SequentialContainer { Name = "Block" };
                 block.Add(condition);
@@ -460,6 +448,212 @@ namespace NINA.Plugin.Nstn.Checks {
                 Check($"{line} at SQM {sqm}: never opens at this site", forecast.NeverOpensAtSite, $"needs {forecast.MinimumSkyBrightness:0.00}, site {forecast.SqmZenith:0.00}");
                 Check($"{line} at SQM {sqm}: its own text ({key})", condition.WindowSummary == expected, condition.WindowSummary);
             }
+        }
+
+        // -------------------------------------------------------------------
+        // The night plan of the filter plan follows its rows
+        // -------------------------------------------------------------------
+
+        private static void PlanFollowsRowsChecks() {
+            Console.WriteLine();
+            Console.WriteLine("== Night plan after a row is added (the diagram follows the rows) ==");
+            var site = SiteProfile(20.9, new[] { "Ha", "O3", "L" },
+                "[{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}," +
+                "{\"NinaName\":\"O3\",\"Preset\":\"\",\"Line\":\"OIII\",\"BandwidthNm\":7}," +
+                "{\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}]");
+            var dso = TargetM33(site);
+            var info = new NstnNightInfo(site);
+            dso.Add(info);
+            var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+            plan.Rows.Clear();
+            plan.Rows.Add(new FilterPlanRow { FilterName = "Ha" });
+            dso.Add(plan);
+            Check("one row: the night plan shows it", WaitFor(() => PlanLabels(plan) == "Ha: 5 × 300 s"), PlanState(plan));
+            // Night Info next to the plan: the target is not in a sequence here, so its 20 s
+            // refresh never runs - only a refresh the plan asks for can bring the new bands.
+            info.RecalculateCommand.Execute(null);
+            Check("Night Info: one band", WaitFor(() => ChartBands(info) == 1), $"{ChartBands(info)} bands");
+            // Adding a row rebuilds the children; the new waiting instruction must plan with all of them.
+            plan.Rows.Add(new FilterPlanRow { FilterName = "O3" });
+            plan.Rows.Add(new FilterPlanRow { FilterName = "L", Count = 10, ExposureSeconds = 120 });
+            Check("rows added: the night plan shows all rows without waiting for its 20 s refresh",
+                WaitFor(() => PlanLabels(plan) == "Ha: 5 × 300 s | O3: 5 × 300 s | L: 10 × 120 s"), PlanLabels(plan));
+            var lines = string.Join(" | ", plan.Windows.Select(w => w.Line));
+            Check("each row's condition rates its own band", lines == "Ha | OIII | RGB", lines);
+            Check("Night Info next to the plan shows the new bands without waiting for its 20 s refresh",
+                WaitFor(() => ChartBands(info) == 3), $"{ChartBands(info)} bands: {string.Join(", ", info.Chart.Rows.Where(r => !r.IsMoon).Select(r => r.Label))}");
+        }
+
+        private static string PlanLabels(NstnFilterPlan plan) => string.Join(" | ", plan.Waiter?.Plan.Rows.Select(r => r.Label) ?? Enumerable.Empty<string>());
+
+        private static string PlanState(NstnFilterPlan plan) {
+            var waiter = plan.Waiter;
+            if (waiter == null) {
+                return "no waiter";
+            }
+            var p = waiter.Plan;
+            return $"rows '{PlanLabels(plan)}', HasPlan {p.HasPlan}, summary '{p.Summary}', notes '{p.Notes}', issues '{string.Join(" / ", waiter.Issues)}', wait '{waiter.WaitSummary}', parent {waiter.Parent?.Name}";
+        }
+
+        private static int ChartBands(NstnNightInfo info) => info.Chart?.Rows?.Count(r => !r.IsMoon) ?? 0;
+
+        /// <summary>
+        /// Up to 15 s: without N.I.N.A.'s database every UT1-UTC lookup fails slowly here.
+        /// The 20 s refreshes do not run (the target is not in a sequence), so waiting
+        /// longer cannot make a missing refresh look present.
+        /// </summary>
+        private static bool WaitFor(Func<bool> done) {
+            for (var i = 0; i < 150; i++) {
+                if (done()) {
+                    return true;
+                }
+                System.Threading.Thread.Sleep(100);
+            }
+            return done();
+        }
+
+        // -------------------------------------------------------------------
+        // Filters of this profile: a set preset and the line in the filter's name
+        // -------------------------------------------------------------------
+
+        private static void AssignmentChecks() {
+            Console.WriteLine();
+            Console.WriteLine("== Filters of this profile: a set preset takes the line the filter's name names ==");
+            const string set = "Astronomik (6 nm)";
+            foreach (var (name, expected) in new[] { ("S2", "SII"), ("O3", "OIII"), ("Ha", "Ha"), ("SII 6nm", "SII") }) {
+                var row = new FilterAssignmentRow(name, null, () => { }) { Choice = set };
+                Check($"'{name}' + {set}: line {expected}", row.Line == expected, row.Line);
+            }
+            var wrong = new FilterAssignmentRow("S2", new FilterAssignment("S2", set, "Ha", 6), () => { });
+            var remark = Text.T("Assign_NameMismatch", Bands.ShortLabel("SII"), Bands.ShortLabel("Ha"));
+            Check("'S2' saved as H-alpha: the result says the name names S II", wrong.Result.EndsWith(remark, StringComparison.Ordinal), wrong.Result);
+            var right = new FilterAssignmentRow("S2", new FilterAssignment("S2", set, "SII", 6), () => { });
+            Check("'S2' saved as S II: no remark", right.Result == "→ " + right.ToAssignment().Describe(), right.Result);
+        }
+
+        // -------------------------------------------------------------------
+        // A row's own window: priority, threshold, altitude, time span
+        // -------------------------------------------------------------------
+
+        private static void OwnWindowChecks() {
+            Console.WriteLine();
+            Console.WriteLine("== A row's own window (priority, threshold, altitude, time span) ==");
+            var site = SiteProfile(21.3, new[] { "Ha", "O3", "L" },
+                "[{\"NinaName\":\"Ha\",\"Preset\":\"\",\"Line\":\"Ha\",\"BandwidthNm\":7}," +
+                "{\"NinaName\":\"O3\",\"Preset\":\"\",\"Line\":\"OIII\",\"BandwidthNm\":7}," +
+                "{\"NinaName\":\"L\",\"Preset\":\"\",\"Line\":\"RGB\",\"BandwidthNm\":89}]");
+            var dso = TargetM33(site);
+            var plan = new NstnFilterPlan(site, camera, imaging, imageSave, history, filterWheel) { Name = "NSTN filter plan", Category = "NSTN" };
+            plan.Rows.Clear();
+            plan.Rows.Add(new FilterPlanRow { FilterName = "Ha" });
+            plan.Rows.Add(new FilterPlanRow { FilterName = "O3", Priority = true, ThresholdOffset = 0.3, NotBefore = "22:00", NotAfter = "2:00" });
+            plan.Rows.Add(new FilterPlanRow { FilterName = "L", Count = 10, ExposureSeconds = 120, MinAltitude = 40 });
+            dso.Add(plan);
+
+            Check("priority row runs first and keeps its window (no iteration limit)",
+                Plain(plan.ActualStructure) == "Wait | O3 5x300 g-1 o-1 1x1 r- w+0.3/-/22:00-02:00 | Ha 5x300 | L 10x120 w0/40/--- | End", plan.ActualStructure);
+            Check("own window: children match the rows", plan.ActualStructure == plan.ExpectedStructure, plan.ExpectedStructure);
+            var o3 = plan.Windows[0];
+            Check("own window: the block's condition carries the row's limits",
+                o3.ThresholdOffset == 0.3 && o3.NotBefore == "22:00" && o3.NotAfter == "02:00" && o3.MinAltitude == null && plan.Windows[2].MinAltitude == 40,
+                $"{o3.ThresholdOffset} {o3.NotBefore}-{o3.NotAfter} {o3.MinAltitude} / L {plan.Windows[2].MinAltitude}");
+            Check("outline names the priority and the limits", plan.Outline.Contains(Text.T("Plan_OutlineRowPriority", 2, "O3: 5 × 300 s"), StringComparison.Ordinal)
+                && plan.Outline.Contains(plan.Rows[1].LimitsText, StringComparison.Ordinal), plan.Outline);
+            // The night plan's advice "add Loop For Iterations" is for blocks built by hand, not for a priority row.
+            WaitFor(() => plan.Waiter?.Plan.HasPlan == true);
+            var advice = Text.T("Plan_Priority", Text.Quote("O3: 5 × 300 s"));
+            Check("night plan: no advice to add an iteration limit to a priority row",
+                plan.Waiter?.Plan.HasPlan == true && !plan.Waiter.Plan.Notes.Contains(advice, StringComparison.Ordinal), plan.Waiter?.Plan.Notes ?? "no plan");
+            Check("row labels: the priority label is its own key", Text.T("Plan_PriorityLabel").Length < 20, Text.T("Plan_PriorityLabel"));
+
+            // Saved with the sequence and read back.
+            var root = new SequentialContainer { Name = "Root" };
+            root.Add(plan.Clone() as NstnFilterPlan);
+            var json = converter.Serialize(root);
+            var loaded = ((ISequenceContainer)converter.Deserialize(json)).Items.OfType<NstnFilterPlan>().Single();
+            var row = loaded.Rows[1];
+            Check("saved and loaded: the row's own window", row.Priority && row.ThresholdOffset == 0.3 && row.NotBefore == "22:00" && row.NotAfter == "02:00"
+                && loaded.Rows[2].MinAltitude == 40 && loaded.Rows[0].Limits.IsNone && !loaded.Rows[0].Priority, $"{row.WindowText} / {loaded.Rows[2].WindowText}");
+            Check("saved and loaded: children match the rows", loaded.ActualStructure == loaded.ExpectedStructure, loaded.ActualStructure);
+            Check("a row without its own window writes none of its fields",
+                !Regex.IsMatch(RowJson(json, "Ha"), "Priority|ThresholdOffset|MinAltitude|NotBefore|NotAfter"), RowJson(json, "Ha"));
+
+            // The window itself: the time span and the stricter threshold only narrow it.
+            var limited = WaitForForecast(plan.Windows[0]);
+            var free = new NstnWindowCondition(site) { Line = "OIII", BandwidthNm = 7 };
+            var block = new SequentialContainer { Name = "free" };
+            block.Add(free);
+            dso.Add(block);
+            var plain = WaitForForecast(free);
+            var start = WindowLimits.NightMoment(plain?.NightDate ?? default, new TimeOnly(22, 0), TimeZoneInfo.Local);
+            var end = WindowLimits.NightMoment(plain?.NightDate ?? default, new TimeOnly(2, 0), TimeZoneInfo.Local);
+            Check("own window: a forecast with and without limits", limited != null && plain != null, $"{limited != null} {plain != null}");
+            if (limited != null && plain != null) {
+                Check("own window: inside 22:00-02:00 and never longer than without limits",
+                    limited.Segments.All(s => s.Start >= start && s.End <= end) && limited.OpenMinutes <= plain.OpenMinutes,
+                    $"{limited.OpenMinutes:0} min with, {plain.OpenMinutes:0} min without");
+            }
+
+            // Opening the settings is no change: no rebuild, the sequence is not marked as changed.
+            var waiter = plan.Waiter;
+            plan.Rows[0].IsExpanded = true;
+            Check("opening a row's own window does not rebuild the plan", ReferenceEquals(waiter, plan.Waiter), "rebuilt");
+            plan.Rows[0].MinAltitude = 35;
+            Check("changing it does", !ReferenceEquals(waiter, plan.Waiter) && plan.ActualStructure.Contains("w0/35/---", StringComparison.Ordinal), plan.ActualStructure);
+            plan.Rows[0].NotBefore = "nachts";
+            Check("an unreadable time keeps the old value", plan.Rows[0].NotBefore == null, plan.Rows[0].NotBefore ?? "null");
+        }
+
+        private static BandForecast WaitForForecast(NstnWindowCondition condition) {
+            BandForecast forecast = null;
+            WaitFor(() => (forecast = condition.CurrentForecast()) != null);
+            return forecast;
+        }
+
+        /// <summary>The JSON object of the row with that filter name.</summary>
+        private static string RowJson(string json, string filter) =>
+            Regex.Match(json, "\\{[^{}]*\"FilterName\": \"" + Regex.Escape(filter) + "\"[^{}]*\\}").Value;
+
+        // -------------------------------------------------------------------
+        // a site for the checks above
+        // -------------------------------------------------------------------
+
+        /// <summary>A profile in Kordel with the given SQM, filter wheel and NSTN filter assignments.</summary>
+        private static IProfileService SiteProfile(double sqm, string[] filters = null, string assignments = null) {
+            var site = Stub.Create<IProfileService>();
+            var p = site.ActiveProfile;
+            p.AstrometrySettings.Latitude = 49.8;
+            p.AstrometrySettings.Longitude = 6.6;
+            foreach (var (filter, position) in (filters ?? Array.Empty<string>()).Select((f, i) => (f, i))) {
+                p.FilterWheelSettings.FilterWheelFilters.Add(new FilterInfo(filter, 0, (short)position));
+            }
+            ((Stub)(object)p.PluginSettings).Handler = (method, a) => {
+                if (method.Name != "TryGetValue") {
+                    return Stub.NotHandled;
+                }
+                var key = (string)a[1];
+                var type = method.GetParameters()[2].ParameterType.GetElementType();
+                if (key == "SkyQuality" && type == typeof(double)) {
+                    a[2] = sqm;
+                    return true;
+                }
+                if (key == "Assignments" && type == typeof(string) && assignments != null) {
+                    a[2] = assignments;
+                    return true;
+                }
+                return false;
+            };
+            return site;
+        }
+
+        private static DeepSkyObjectContainer TargetM33(IProfileService site) {
+            var dso = SequenceWriter.Construct<DeepSkyObjectContainer>(site);
+            dso.Target = new NINA.Astrometry.InputTarget(NINA.Astrometry.Angle.ByDegree(49.8), NINA.Astrometry.Angle.ByDegree(6.6), null) {
+                TargetName = "M 33",
+                InputCoordinates = new NINA.Astrometry.InputCoordinates(new NINA.Astrometry.Coordinates(
+                    NINA.Astrometry.Angle.ByHours(1.5639), NINA.Astrometry.Angle.ByDegree(30.66), NINA.Astrometry.Epoch.J2000)),
+            };
+            return dso;
         }
 
         // -------------------------------------------------------------------

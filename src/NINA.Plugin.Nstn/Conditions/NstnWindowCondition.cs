@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
@@ -93,6 +94,10 @@ namespace NINA.Plugin.Nstn.Conditions {
                 Line = Line,
                 BandwidthNm = BandwidthNm,
                 FilterPreset = FilterPreset,
+                ThresholdOffset = ThresholdOffset,
+                MinAltitude = MinAltitude,
+                NotBefore = NotBefore,
+                NotAfter = NotAfter,
             };
         }
 
@@ -191,6 +196,52 @@ namespace NINA.Plugin.Nstn.Conditions {
                 RaisePresetChanged();
                 ScheduleRefresh();
             }
+        }
+
+        // The filter's own limits, set by a filter plan row. Written only when set, so a
+        // sequence without them is saved exactly as before and an older plugin reads it.
+        private double thresholdOffset;
+        private double? minAltitude;
+        private string notBefore;
+        private string notAfter;
+
+        /// <summary>Added to the site's threshold (mag/arcsec²): more is stricter, a shorter window.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public double ThresholdOffset {
+            get => thresholdOffset;
+            set => SetLimit(ref thresholdOffset, double.IsFinite(value) ? Math.Round(value, 2) : thresholdOffset);
+        }
+
+        /// <summary>The target's minimum altitude for this band; null keeps the site's.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public double? MinAltitude {
+            get => minAltitude;
+            set => SetLimit(ref minAltitude, value is double v && (!double.IsFinite(v) || v < 0 || v > 90) ? minAltitude : value);
+        }
+
+        /// <summary>Local clock time ("HH:mm") the window opens at the earliest; null for none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string NotBefore {
+            get => notBefore;
+            set => SetLimit(ref notBefore, WindowLimits.ParseClock(value)?.ToString("HH:mm", CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>Local clock time ("HH:mm") the window closes at the latest; null for none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string NotAfter {
+            get => notAfter;
+            set => SetLimit(ref notAfter, WindowLimits.ParseClock(value)?.ToString("HH:mm", CultureInfo.InvariantCulture));
+        }
+
+        public WindowLimits Limits => new WindowLimits(thresholdOffset, minAltitude, WindowLimits.ParseClock(notBefore), WindowLimits.ParseClock(notAfter));
+
+        private void SetLimit<T>(ref T field, T value, [CallerMemberName] string name = null) {
+            if (EqualityComparer<T>.Default.Equals(field, value)) {
+                return;
+            }
+            field = value;
+            RaisePropertyChanged(name);
+            ScheduleRefresh();
         }
 
         // -------------------------------------------------------------------
@@ -478,7 +529,10 @@ namespace NINA.Plugin.Nstn.Conditions {
                 ? BlockFilterNames(Parent, 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
                 : null;
             lock (refreshGate) {
-                if (!force && NstnClock.UtcNow - lastRefreshUtc < ReuseFor) {
+                // Only a forecast is reused. No forecast often means "not in a target yet":
+                // a filter plan builds a block before it adds it, and the night plan asking
+                // right after must not get that empty answer for another two seconds.
+                if (!force && lastForecast != null && NstnClock.UtcNow - lastRefreshUtc < ReuseFor) {
                     ShowNow(lastForecast);
                     return lastForecast;
                 }
@@ -508,7 +562,8 @@ namespace NINA.Plugin.Nstn.Conditions {
                             j2000.Dec,
                             options.SkyQuality,
                             Bands.ToFilter(Line, BandwidthNm),
-                            options.ToWindowSettings());
+                            options.ToWindowSettings(),
+                            Limits);
                         // A band that never opens at this site is shown, not reported as
                         // an issue: NINA validates before every check (RunCheck) and turns
                         // a failed validation into a FAILED status plus a failure event -

@@ -80,6 +80,9 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         public ICommand RecalculateCommand { get; }
 
+        /// <summary>For the filter plan: its rows changed, so did the bands of this target.</summary>
+        internal void RecalculateSoon() => Task.Run(Refresh);
+
         public NightChart Chart {
             get => chart;
             private set {

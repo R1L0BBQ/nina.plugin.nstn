@@ -59,6 +59,21 @@ namespace Nstn.Core.Tests {
             Assert.Null(FilterAssignments.Suggest(name));
         }
 
+        /// <summary>Within a filter set the name may pick the line without a bandwidth.</summary>
+        [Theory]
+        [InlineData("S2", "SII")]
+        [InlineData("O3", "OIII")]
+        [InlineData("Ha", "Ha")]
+        [InlineData("OIII 6,5 nm", "OIII")]
+        [InlineData("H-beta", "Hb")]
+        [InlineData("Ha OIII 7nm", null)]   // two lines: a duo, the name decides nothing
+        [InlineData("Shark", null)]         // "ha" inside a word
+        [InlineData("L", null)]
+        [InlineData("", null)]
+        public void TheLineANameNames(string name, string? line) {
+            Assert.Equal(line, FilterAssignments.LineInName(name));
+        }
+
         [Fact]
         public void AssignmentsSurviveTheRoundTripAndInvalidOnesAreDropped() {
             var list = new[] {

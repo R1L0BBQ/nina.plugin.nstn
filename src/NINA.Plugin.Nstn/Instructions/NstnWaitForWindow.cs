@@ -95,6 +95,9 @@ namespace NINA.Plugin.Nstn.Instructions {
 
         public ICommand RecalculateCommand { get; }
 
+        /// <summary>For the filter plan: its children are complete, plan with all of them now.</summary>
+        internal void RefreshPlanSoon() => Task.Run(RefreshPlan);
+
         private void RefreshPlan() {
             lock (planGate) {
                 NightPlan next;

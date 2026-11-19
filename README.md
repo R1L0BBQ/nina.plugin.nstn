@@ -415,7 +415,50 @@ Meldung auch für L/RGB „7 nm“ und riet zur Schmalband-Schwelle.
 | `tests\Run-NinaChecks.ps1 -WriteSequence` | Beispielsequenz: Laden und erneutes Speichern ergeben dieselbe Datei, keine unbekannten Typen |
 | Testinstanz 3.2.0.9001 mit 0.7.1 und einer Profilkopie (Filter L, R, G, B, S2, Ha, O3) | Beispielsequenz geladen, keine Fehler oder Warnungen im Protokoll, Filterplan passt zu seinen Zeilen. Angesehen wurde die Ansicht mit dem 0.7.0-Build: alle Teile von Start bis Ende vorhanden |
 
-## Bekannte Grenzen (Stand 0.7.1)
+## 0.7.2 (18.11.2026)
+
+- **Nachtplan und Nachtinfo ziehen nach.** Beim Einfügen eines Filterplans und nach jeder Zeilenänderung zeigen beide sofort alle Zeilen, nicht erst nach ihrer 20-s-Aktualisierung.
+  - Erste Ursache: Eine neue Fensterbedingung rechnet zum ersten Mal, bevor ihr Block im Ziel hängt. Dieses Ergebnis ohne Vorhersage wurde 2 s lang wiederverwendet. Jetzt wird nur noch eine echte Vorhersage wiederverwendet.
+  - Zweite Ursache: Der Warte-Befehl plante, bevor die Blöcke hinter ihm standen. Jetzt stößt der Plan nach dem Neuaufbau seinen Nachtplan und die Nachtinfo im Ziel an.
+- **Filtersätze nehmen die Linie aus dem Namen.** Bei „Astronomik (6 nm)“ wird „S2“ zu S II und „O3“ zu O III; bisher blieb es bei Hα. Eine gespeicherte Zuordnung, die dem Namen widerspricht, zeigt „prüfen: der Filtername nennt …“.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 222/222 Kerntests, neu: Linie aus dem Filternamen |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 130/130 mit Läufen. Neu: Nachtplan und Nachtinfo nach dem Hinzufügen von Zeilen, Linie aus dem Namen und Hinweis bei Widerspruch. Gegenproben: ohne jede der beiden Korrekturen fallen die zugehörigen Prüfungen |
+
+## 0.8.0 (18.11.2026)
+
+**Eigenes Fenster je Filterzeile.** Unter „Eigenes Fenster“ hat jede Zeile vier Einstellungen:
+- Vorrang: läuft zuerst, ohne Iterationsgrenze, und behält ihr Fenster.
+- Schwelle: Abweichung zur Schwelle der Optionen in mag/arcsec².
+- Mindesthöhe.
+- Zeitspanne: „nicht vor“ und „nicht nach“ als HH:mm.
+
+**Umsetzung:**
+- Zeile und Fensterbedingung speichern die Werte nur, wenn sie gesetzt sind. Pläne ohne sie bleiben byte-gleich, die Golddatei ist unverändert.
+- Der Kern wendet sie über `WindowLimits` an: Schwelle und Höhe gehen in die `WindowSettings`, die Zeitspanne schneidet die Segmente.
+- Die Sequenzprüfung der Nachtinfo gibt bei Vorrang-Zeilen keinen Rat mehr, „Loop For Iterations“ zu ergänzen.
+- Das Aufklappen von „Eigenes Fenster“ baut den Plan nicht neu auf.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `build.ps1` | 239/239 Kerntests, darunter `WindowLimitsTests` (Schwelle, Höhe, Zeitspanne über Mitternacht, Einlesen der Uhrzeit, Vorhersage nur enger) und eine Vorrang-Zeile ohne Prüfbefund |
+| `tests\Run-NinaChecks.ps1` gegen 3.2.0.9001 | 144/144 mit Läufen. Neu: Reihenfolge und Struktur mit Vorrang, Grenzen an der Bedingung, Speichern und Laden, keine Felder ohne eigenes Fenster, Vorhersage innerhalb 22–02 Uhr, kein Vorrang-Rat im Nachtplan. Gegenproben: Ignoriert die Bedingung die Grenzen, fällt die Prüfung (204 min statt innerhalb 22–02 Uhr); mit dem alten Nachtplan-Rat fällt die Prüfung dazu |
+
+**Ansicht:**
+- Der Plan zeigt vier Abschnitte: Filter je Runde, Für alle Aufnahmen, Ablauf und Heute Nacht.
+- Die Gliederung ist eingeklappt; die Endezeile steht immer daneben.
+- „Heute Nacht“ ist eine ausgerichtete Tabelle.
+- „Eigenes Fenster“ ist ein normaler N.I.N.A.-Knopf. Ein ToggleButton bleibt im N.I.N.A.-Theme unlesbar, weil N.I.N.A. ihn nicht gestaltet.
+- „Vorrang“ ist eine Beschriftung mit N.I.N.A.-Schalter.
+- Im Filterplan gibt der Nachtplan bei Vorrang-Zeilen keinen Rat mehr, „Loop For Iterations“ zu ergänzen.
+
+**Gefunden beim Ansehen in der Testinstanz:** Der Schlüssel `Plan_Priority` stand doppelt in den Sprachtabellen, die Beschriftung zeigte deshalb den Satz des Nachtplans. Neuer Test `NoKeyIsWrittenTwice`; die Gegenprobe mit einem doppelten Schlüssel fällt.
+
+**Angesehen** in der abgeschotteten N.I.N.A. 3.2 mit deinem Profil (deutsch): Zeilen aufgeklappt, alle vier Abschnitte. Das Aufklappen per Klick selbst ist nicht angesehen. Dafür lief eine Zwischenfassung, in der Zeilen und Ablauf schon aufgeklappt starteten, weil sich die Testinstanz nicht anklicken ließ, ohne dir den Fokus zu nehmen.
+
+## Bekannte Grenzen (Stand 0.8.0)
 
 - Filterplan: je Zeile eine Linie (Duo-Filter mit zwei Linien an der Farbkamera nur von Hand);
   ein gespeicherter Plan behält seinen Namen in der Sprache, in der er angelegt wurde.

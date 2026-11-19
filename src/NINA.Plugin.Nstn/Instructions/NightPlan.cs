@@ -131,7 +131,8 @@ namespace NINA.Plugin.Nstn.Instructions {
 
             // Several blocks and one of them without an iteration limit: that block keeps
             // its window - worth saying, it is the opposite of what a round robin intends.
-            if (blocks.Count > 1) {
+            // In a filter plan that is a row with priority, chosen on purpose: no advice.
+            if (blocks.Count > 1 && parent is not FilterPlan.NstnFilterPlan) {
                 foreach (var block in blocks.Where(b => b.MaxPasses == null)) {
                     notes.Add(Text.T("Plan_Priority", Text.Quote(block.Label)));
                 }

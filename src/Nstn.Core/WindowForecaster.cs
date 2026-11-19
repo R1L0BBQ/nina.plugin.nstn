@@ -121,6 +121,23 @@ namespace Nstn.Core {
                 Sky: sky);
         }
 
+        /// <summary>The window of a band with a filter's own limits (a filter plan row).</summary>
+        public BandForecast Forecast(
+            DateTime utcMoment,
+            TimeZoneInfo timezone,
+            double latitude,
+            double longitude,
+            double raDeg,
+            double decDeg,
+            double sqmZenith,
+            EvalFilter band,
+            WindowSettings settings,
+            WindowLimits limits) {
+
+            var forecast = Forecast(utcMoment, timezone, latitude, longitude, raDeg, decDeg, sqmZenith, band, limits.Apply(settings));
+            return forecast with { Segments = limits.Clip(forecast.Segments, forecast.NightDate, timezone) };
+        }
+
         /// <summary>Sun, moon, target and sky of the night a moment belongs to - shared with the forecasts.</summary>
         public NightBundle Night(DateTime utcMoment, TimeZoneInfo timezone, double latitude, double longitude, double raDeg, double decDeg, double sqmZenith) =>
             Night(NightDateFor(utcMoment, timezone), timezone, latitude, longitude, raDeg, decDeg, sqmZenith);
